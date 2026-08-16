@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#FFFFFF">
+<title>Meu Bolso — Planilha</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+:root{
+  --ink:#16261F;
+  --ink-soft:#3C4B43;
+  --paper:#FAF7F0;
+  --paper-dim:#F0ECE1;
+  --card:#FFFFFF;
+  --accent:#E8622C;
+  --accent-dark:#C64F1E;
+  --line:#E4DFD1;
+  --fixo:#2F6FED;
+  --superfluo:#E8922C;
+  --imprevisto:#D64545;
+  --entrada:#2F9E68;
+  --erro:#D64545;
+}
+*{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; touch-action:manipulation;}
+html{ touch-action:manipulation; }
+html, body{ height:100%; }
+body{
+  background:#FFFFFF;
+  font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color:var(--ink);
+  height:100dvh;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  overscroll-behavior:none;
+  padding-bottom:env(safe-area-inset-bottom);
+}
+.topbar{
+  display:flex; justify-content:space-between; align-items:center; gap:8px;
+  padding:14px 20px 10px;
+  max-width:460px; margin:0 auto; width:100%;
+  flex-shrink:0;
+}
+.topbar h1{ font-family:'Sora', sans-serif; font-weight:800; font-size:16px; flex:1; text-align:center; }
+.nav-btn{
+  width:38px; height:38px; border-radius:11px; background:var(--card);
+  border:1.5px solid var(--ink); display:flex; align-items:center; justify-content:center;
+  font-size:16px; color:var(--ink-soft); flex-shrink:0;
+}
+.wrap{
+  max-width:460px; margin:0 auto; width:100%;
+  padding:6px 20px 20px; display:flex; flex-direction:column; gap:12px;
+  flex:1; overflow-y:auto; min-height:0; overscroll-behavior:contain;
+}
+
+.saldo-card{
+  border:1.5px solid var(--ink); border-radius:16px; padding:16px; text-align:center;
+}
+.saldo-card .label{ font-size:11.5px; color:var(--ink-soft); font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+.saldo-card .valor{ font-family:'JetBrains Mono', monospace; font-weight:700; font-size:32px; margin-top:4px; }
+.saldo-card .valor.negativo{ color:var(--erro); }
+.saldo-card .valor.positivo{ color:var(--entrada); }
+
+.tabs{
+  display:flex; gap:6px; background:var(--paper-dim); padding:4px; border-radius:12px; border:1.5px solid var(--ink);
+}
+.tabs button{
+  flex:1; padding:9px; border-radius:9px; border:none; font-family:'Sora', sans-serif; font-weight:700; font-size:12px;
+  background:transparent; color:var(--ink-soft);
+}
+.tabs button.active{ background:var(--ink); color:#fff; }
+
+.aba{ display:none; flex-direction:column; gap:12px; }
+.aba.visivel{ display:flex; }
+
+.totais-row{ display:flex; gap:6px; flex-wrap:wrap; }
+.totais-row .chip{
+  flex:1; min-width:70px; border:1.5px solid var(--ink); border-radius:11px; padding:8px 6px; text-align:center;
+}
+.totais-row .chip .dot{ width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:4px; }
+.totais-row .chip .nome{ font-size:10px; font-weight:700; color:var(--ink-soft); }
+.totais-row .chip .val{ font-family:'JetBrains Mono', monospace; font-size:12.5px; font-weight:700; margin-top:2px; }
+
+.lista{ display:flex; flex-direction:column; gap:8px; }
+.item{
+  display:flex; align-items:center; gap:10px; border:1.5px solid var(--ink); border-radius:13px; padding:11px 13px;
+}
+.item .dot{ width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.item .info{ flex:1; min-width:0; }
+.item .desc{ font-family:'Sora', sans-serif; font-weight:700; font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.item .data{ font-size:11px; color:var(--ink-soft); margin-top:1px; }
+.item .valor{ font-family:'JetBrains Mono', monospace; font-weight:700; font-size:14px; flex-shrink:0; }
+.item .valor.entrada{ color:var(--entrada); }
+.item .valor.saida{ color:var(--ink); }
+
+.vazio{ text-align:center; color:var(--ink-soft); font-size:12.5px; padding:20px 10px; }
+
+.btn-novo{
+  border:1.5px solid var(--ink); border-radius:13px; padding:11px; text-align:center;
+  font-family:'Sora', sans-serif; font-weight:700; font-size:13px; background:var(--card);
+}
+
+.form-pendencia{ display:none; flex-direction:column; gap:8px; border:1.5px solid var(--ink); border-radius:14px; padding:14px; }
+.form-pendencia.visivel{ display:flex; }
+.form-pendencia input, .form-pendencia select{
+  border:1.5px solid var(--ink); border-radius:11px; padding:10px 12px; font-size:13.5px; font-family:'Sora', sans-serif; color:var(--ink); background:var(--card);
+}
+.form-pendencia .toggle-tipo{ display:flex; gap:6px; }
+.form-pendencia .toggle-tipo button{
+  flex:1; padding:9px; border-radius:9px; border:1.5px solid var(--ink); font-family:'Sora', sans-serif; font-weight:700; font-size:12px; background:var(--card); color:var(--ink-soft);
+}
+.form-pendencia .toggle-tipo button.active.pagar{ background:var(--imprevisto); color:#fff; }
+.form-pendencia .toggle-tipo button.active.receber{ background:var(--entrada); color:#fff; }
+.form-pendencia .btn-salvar{
+  background:var(--ink); color:#fff; padding:11px; border-radius:11px; text-align:center; font-family:'Sora', sans-serif; font-weight:700; font-size:13px; border:none;
+}
+
+.secao-titulo{ font-family:'Sora', sans-serif; font-weight:800; font-size:12px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em; }
+
+.pendencia-card{ border:1.5px solid var(--ink); border-radius:13px; padding:12px 13px; display:flex; flex-direction:column; gap:8px; }
+.pendencia-card.vencida{ border-color:var(--erro); }
+.pendencia-card .linha-topo{ display:flex; align-items:center; gap:10px; }
+.pendencia-card .nome{ font-family:'Sora', sans-serif; font-weight:700; font-size:13.5px; flex:1; }
+.pendencia-card .data{ font-size:11px; color:var(--ink-soft); }
+.pendencia-card .valor{ font-family:'JetBrains Mono', monospace; font-weight:700; font-size:13px; }
+.pendencia-card .acoes{ display:flex; gap:6px; }
+.pendencia-card .acoes button{
+  flex:1; padding:9px; border-radius:9px; border:1.5px solid var(--ink); font-family:'Sora', sans-serif; font-weight:700; font-size:12px; background:var(--card);
+}
+.pendencia-card .acoes .resolver{ background:var(--ink); color:#fff; }
+.pendencia-card .acoes .excluir{ color:var(--erro); }
+
+.resolver-form{ display:none; flex-direction:column; gap:7px; border-top:1.5px dashed var(--line); padding-top:9px; }
+.resolver-form.visivel{ display:flex; }
+.resolver-form input, .resolver-form select{
+  border:1.5px solid var(--ink); border-radius:10px; padding:9px 11px; font-size:13px; font-family:'Sora', sans-serif; background:var(--card); color:var(--ink);
+}
+.resolver-form .pay-row{ display:flex; gap:6px; }
+.resolver-form .pay-row div{
+  flex:1; text-align:center; padding:8px 2px; border-radius:9px; border:1.5px solid var(--ink); font-size:11px; font-weight:700; background:var(--card); color:var(--ink-soft);
+}
+.resolver-form .pay-row div.active{ background:var(--ink); color:#fff; }
+.resolver-form .confirmar{ background:var(--entrada); color:#fff; padding:9px; border-radius:10px; border:none; font-weight:700; font-size:12.5px; }
+
+.erro-msg{
+  background:#FBEAEA; color:var(--erro); font-size:12.5px; font-weight:600;
+  padding:10px 14px; border-radius:10px; display:none;
+}
+
+.toast{
+  position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+  background:var(--ink); color:var(--paper); padding:12px 20px; border-radius:100px;
+  font-family:'Sora', sans-serif; font-size:13px; font-weight:600; display:none; white-space:nowrap; z-index:10;
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="nav-btn" onclick="window.location.href='/home.html'">←</div>
+  <h1>Planilha</h1>
+  <div class="nav-btn" onclick="carregarTudo()">🔄</div>
+</div>
+
+<div class="wrap">
+
+  <div class="saldo-card">
+    <div class="label">Saldo do mês</div>
+    <div class="valor" id="saldoValor">R$ 0,00</div>
+  </div>
+
+  <div class="tabs">
+    <button class="active" id="tabLancamentos" onclick="mostrarAba('lancamentos')">Lançamentos</button>
+    <button id="tabPendencias" onclick="mostrarAba('pendencias')">A Pagar &amp; Receber</button>
+  </div>
+
+  <div class="erro-msg" id="erroMsg"></div>
+
+  <div class="aba visivel" id="abaLancamentos">
+    <div class="totais-row">
+      <div class="chip"><div><span class="dot" style="background:var(--entrada)"></span><span class="nome">Entrada</span></div><div class="val" id="totalEntrada">R$0,00</div></div>
+      <div class="chip"><div><span class="dot" style="background:var(--fixo)"></span><span class="nome">Fixo</span></div><div class="val" id="totalFixo">R$0,00</div></div>
+      <div class="chip"><div><span class="dot" style="background:var(--superfluo)"></span><span class="nome">Supérfluo</span></div><div class="val" id="totalSuperfluo">R$0,00</div></div>
+      <div class="chip"><div><span class="dot" style="background:var(--imprevisto)"></span><span class="nome">Imprevisto</span></div><div class="val" id="totalImprevisto">R$0,00</div></div>
+    </div>
+
+    <div class="lista" id="listaLancamentos"></div>
+  </div>
+
+  <div class="aba" id="abaPendencias">
+    <div class="btn-novo" id="btnNovaPendencia" onclick="alternarFormPendencia()">+ Nova pendência</div>
+
+    <div class="form-pendencia" id="formPendencia">
+      <div class="toggle-tipo">
+        <button type="button" class="active pagar" id="btnTipoPagar" onclick="setTipoPendencia('pagar')">A Pagar</button>
+        <button type="button" id="btnTipoReceber" onclick="setTipoPendencia('receber')">A Receber</button>
+      </div>
+      <input type="text" id="pendNome" placeholder="Nome (ex: Conta de luz)">
+      <input type="date" id="pendData">
+      <input type="text" id="pendValor" placeholder="Valor (opcional)" inputmode="decimal">
+      <button class="btn-salvar" onclick="salvarPendencia()">Salvar</button>
+    </div>
+
+    <div>
+      <div class="secao-titulo" style="margin-bottom:8px;">Vencidas</div>
+      <div class="lista" id="listaVencidas"></div>
+    </div>
+
+    <div>
+      <div class="secao-titulo" style="margin-bottom:8px;">Próximas</div>
+      <div class="lista" id="listaFuturas"></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = '/api';
+const token = localStorage.getItem('meubolso_token');
+
+if (!token) {
+  window.location.href = '/index.html';
+}
+
+let tipoPendenciaAtual = 'pagar';
+let lancamentosCache = [];
+let pendenciasCache = [];
+
+function formatarMoeda(valor) {
+  const n = Number(valor || 0);
+  return 'R$ ' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function formatarData(dataStr) {
+  const d = new Date(dataStr);
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
+
+function mostrarErro(msg) {
+  const el = document.getElementById('erroMsg');
+  el.textContent = msg;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 4000);
+}
+
+function mostrarToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 2200);
+}
+
+function mostrarAba(nome) {
+  document.getElementById('abaLancamentos').classList.toggle('visivel', nome === 'lancamentos');
+  document.getElementById('abaPendencias').classList.toggle('visivel', nome === 'pendencias');
+  document.getElementById('tabLancamentos').classList.toggle('active', nome === 'lancamentos');
+  document.getElementById('tabPendencias').classList.toggle('active', nome === 'pendencias');
+}
+
+function alternarFormPendencia() {
+  const form = document.getElementById('formPendencia');
+  form.classList.toggle('visivel');
+  if (form.classList.contains('visivel')) {
+    document.getElementById('pendData').valueAsDate = new Date();
+  }
+}
+
+function setTipoPendencia(tipo) {
+  tipoPendenciaAtual = tipo;
+  document.getElementById('btnTipoPagar').classList.toggle('active', tipo === 'pagar');
+  document.getElementById('btnTipoReceber').classList.toggle('active', tipo === 'receber');
+}
+
+async function carregarTudo() {
+  await Promise.all([carregarLancamentos(), carregarPendencias()]);
+}
+
+async function carregarLancamentos() {
+  try {
+    const res = await fetch(`${API}/lancamentos`, { headers: { 'x-token': token } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.erro || 'Erro ao buscar lançamentos.');
+    lancamentosCache = data.lancamentos || [];
+    renderizarLancamentos();
+  } catch (e) {
+    console.error(e);
+    mostrarErro('Não foi possível carregar os lançamentos.');
+  }
+}
+
+function renderizarLancamentos() {
+  let saldo = 0;
+  let totais = { entrada: 0, fixo: 0, superfluo: 0, imprevisto: 0 };
+
+  lancamentosCache.forEach(l => {
+    const valor = Number(l.valor);
+    if (l.tipo_movimento === 'entrada') {
+      saldo += valor;
+      totais.entrada += valor;
+    } else {
+      saldo -= valor;
+      if (totais[l.categoria] !== undefined) totais[l.categoria] += valor;
+    }
+  });
+
+  const saldoEl = document.getElementById('saldoValor');
+  saldoEl.textContent = formatarMoeda(saldo);
+  saldoEl.className = 'valor ' + (saldo < 0 ? 'negativo' : 'positivo');
+
+  document.getElementById('totalEntrada').textContent = formatarMoeda(totais.entrada);
+  document.getElementById('totalFixo').textContent = formatarMoeda(totais.fixo);
+  document.getElementById('totalSuperfluo').textContent = formatarMoeda(totais.superfluo);
+  document.getElementById('totalImprevisto').textContent = formatarMoeda(totais.imprevisto);
+
+  const cores = { entrada: 'var(--entrada)', fixo: 'var(--fixo)', superfluo: 'var(--superfluo)', imprevisto: 'var(--imprevisto)' };
+  const lista = document.getElementById('listaLancamentos');
+
+  if (lancamentosCache.length === 0) {
+    lista.innerHTML = '<div class="vazio">Nenhum lançamento neste mês ainda.</div>';
+    return;
+  }
+
+  lista.innerHTML = lancamentosCache.map(l => {
+    const cor = l.tipo_movimento === 'entrada' ? cores.entrada : (cores[l.categoria] || cores.imprevisto);
+    const classeValor = l.tipo_movimento === 'entrada' ? 'entrada' : 'saida';
+    const sinal = l.tipo_movimento === 'entrada' ? '+' : '-';
+    const parcelaInfo = l.total_parcelas ? ` (${l.parcela_atual}/${l.total_parcelas})` : '';
+    return `
+      <div class="item">
+        <span class="dot" style="background:${cor}"></span>
+        <div class="info">
+          <div class="desc">${escapeHtml(l.descricao)}${parcelaInfo}</div>
+          <div class="data">${formatarData(l.data_lancamento)}</div>
+        </div>
+        <div class="valor ${classeValor}">${sinal}${formatarMoeda(l.valor)}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function carregarPendencias() {
+  try {
+    const res = await fetch(`${API}/pendencias`, { headers: { 'x-token': token } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.erro || 'Erro ao buscar pendências.');
+    pendenciasCache = data.pendencias || [];
+    renderizarPendencias();
+  } catch (e) {
+    console.error(e);
+    mostrarErro('Não foi possível carregar as pendências.');
+  }
+}
+
+function renderizarPendencias() {
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+
+  const vencidas = pendenciasCache.filter(p => new Date(p.data_vencimento) < hoje);
+  const futuras = pendenciasCache.filter(p => new Date(p.data_vencimento) >= hoje);
+
+  const listaVencidas = document.getElementById('listaVencidas');
+  const listaFuturas = document.getElementById('listaFuturas');
+
+  listaVencidas.innerHTML = vencidas.length
+    ? vencidas.map(p => renderizarPendenciaCard(p, true)).join('')
+    : '<div class="vazio">Nada vencido. 🎉</div>';
+
+  listaFuturas.innerHTML = futuras.length
+    ? futuras.map(p => renderizarPendenciaCard(p, false)).join('')
+    : '<div class="vazio">Nenhuma pendência futura.</div>';
+}
+
+function renderizarPendenciaCard(p, vencida) {
+  const labelAcao = p.tipo === 'pagar' ? 'Paguei' : 'Recebi';
+  const valorTexto = p.valor ? formatarMoeda(p.valor) : 'Valor não informado';
+  return `
+    <div class="pendencia-card ${vencida ? 'vencida' : ''}">
+      <div class="linha-topo">
+        <div class="nome">${escapeHtml(p.nome)}</div>
+        <div class="data">${formatarData(p.data_vencimento)}</div>
+      </div>
+      <div class="valor">${valorTexto}</div>
+      ${vencida ? `
+        <div class="acoes">
+          <button class="resolver" onclick="abrirResolverForm(${p.id})">${labelAcao}</button>
+          <button class="excluir" onclick="excluirPendencia(${p.id})">Excluir</button>
+        </div>
+        <div class="resolver-form" id="resolverForm${p.id}">
+          <input type="text" id="resolverValor${p.id}" placeholder="Valor" inputmode="decimal" value="${p.valor || ''}">
+          ${p.tipo === 'pagar' ? `
+            <div class="pay-row" id="payRow${p.id}">
+              <div data-forma="dinheiro" onclick="selecionarFormaPend(${p.id}, 'dinheiro')">Dinheiro</div>
+              <div data-forma="debito" onclick="selecionarFormaPend(${p.id}, 'debito')">Débito</div>
+              <div data-forma="credito" onclick="selecionarFormaPend(${p.id}, 'credito')">Crédito</div>
+            </div>
+            <select id="resolverCategoria${p.id}">
+              <option value="fixo">Fixo</option>
+              <option value="superfluo">Supérfluo</option>
+              <option value="imprevisto" selected>Imprevisto</option>
+            </select>
+          ` : ''}
+          <button class="confirmar" onclick="confirmarResolucao(${p.id}, '${p.tipo}')">Confirmar</button>
+        </div>
+      ` : `
+        <div class="acoes">
+          <button class="excluir" onclick="excluirPendencia(${p.id})">Excluir</button>
+        </div>
+      `}
+    </div>
+  `;
+}
+
+function abrirResolverForm(id) {
+  const form = document.getElementById(`resolverForm${id}`);
+  form.classList.toggle('visivel');
+}
+
+function selecionarFormaPend(id, forma) {
+  const row = document.getElementById(`payRow${id}`);
+  row.dataset.formaEscolhida = forma;
+  Array.from(row.children).forEach(el => {
+    el.classList.toggle('active', el.dataset.forma === forma);
+  });
+}
+
+async function confirmarResolucao(id, tipo) {
+  const valor = document.getElementById(`resolverValor${id}`).value;
+  const body = { valor };
+
+  if (tipo === 'pagar') {
+    const row = document.getElementById(`payRow${id}`);
+    const forma = row ? row.dataset.formaEscolhida : null;
+    if (!forma) {
+      mostrarErro('Escolha a forma de pagamento.');
+      return;
+    }
+    body.forma_pagamento = forma;
+    body.categoria = document.getElementById(`resolverCategoria${id}`).value;
+  }
+
+  try {
+    const res = await fetch(`${API}/pendencias/${id}/resolver`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-token': token },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.erro || 'Erro ao concluir.');
+    mostrarToast(tipo === 'pagar' ? 'Marcado como pago ✓' : 'Marcado como recebido ✓');
+    await carregarTudo();
+  } catch (e) {
+    mostrarErro(e.message);
+  }
+}
+
+async function excluirPendencia(id) {
+  try {
+    const res = await fetch(`${API}/pendencias/${id}`, {
+      method: 'DELETE',
+      headers: { 'x-token': token }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.erro || 'Erro ao excluir.');
+    mostrarToast('Excluído.');
+    await carregarPendencias();
+  } catch (e) {
+    mostrarErro(e.message);
+  }
+}
+
+async function salvarPendencia() {
+  const nome = document.getElementById('pendNome').value.trim();
+  const data_vencimento = document.getElementById('pendData').value;
+  const valorInput = document.getElementById('pendValor').value.trim();
+
+  if (!nome) {
+    mostrarErro('Digite o nome da conta.');
+    return;
+  }
+  if (!data_vencimento) {
+    mostrarErro('Escolha a data de vencimento.');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API}/pendencias`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-token': token },
+      body: JSON.stringify({
+        tipo: tipoPendenciaAtual,
+        nome,
+        data_vencimento,
+        valor: valorInput || undefined
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.erro || 'Erro ao salvar.');
+
+    document.getElementById('pendNome').value = '';
+    document.getElementById('pendValor').value = '';
+    document.getElementById('formPendencia').classList.remove('visivel');
+    mostrarToast('Pendência criada ✓');
+    await carregarPendencias();
+  } catch (e) {
+    mostrarErro(e.message);
+  }
+}
+
+function escapeHtml(texto) {
+  const div = document.createElement('div');
+  div.textContent = texto;
+  return div.innerHTML;
+}
+
+carregarTudo();
+</script>
+</body>
+</html>
