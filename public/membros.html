@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#FFFFFF">
+<title>Meu Bolso — Membros</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+:root{
+  --ink:#16261F;
+  --ink-soft:#3C4B43;
+  --paper:#FAF7F0;
+  --paper-dim:#F0ECE1;
+  --card:#FFFFFF;
+  --accent:#E8622C;
+  --accent-dark:#C64F1E;
+  --line:#E4DFD1;
+  --fixo:#2F6FED;
+  --superfluo:#E8922C;
+  --imprevisto:#D64545;
+  --entrada:#2F9E68;
+  --erro:#D64545;
+}
+*{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; touch-action:manipulation;}
+html{ touch-action:manipulation; }
+html, body{ height:100%; }
+body{
+  background:#FFFFFF;
+  font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color:var(--ink);
+  height:100dvh;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  overscroll-behavior:none;
+  padding-bottom:env(safe-area-inset-bottom);
+}
+.topbar{
+  display:flex; justify-content:space-between; align-items:center; gap:8px;
+  padding:14px 20px 10px;
+  max-width:460px; margin:0 auto; width:100%;
+  flex-shrink:0;
+}
+.topbar h1{ font-family:'Sora', sans-serif; font-weight:800; font-size:16px; flex:1; text-align:center; }
+.nav-btn{
+  width:38px; height:38px; border-radius:11px; background:var(--card);
+  border:1.5px solid var(--ink); display:flex; align-items:center; justify-content:center;
+  font-size:16px; color:var(--ink-soft); flex-shrink:0; transition:transform .1s;
+}
+.nav-btn:active{ transform:scale(0.9); background:var(--paper-dim); }
+.wrap{
+  max-width:460px; margin:0 auto; width:100%;
+  padding:6px 20px 24px; display:flex; flex-direction:column; gap:16px;
+  flex:1; overflow-y:auto; min-height:0; overscroll-behavior:contain;
+}
+
+.secao{ border:1.5px solid var(--ink); border-radius:16px; padding:16px; }
+.secao-titulo{ font-family:'Sora', sans-serif; font-weight:800; font-size:12.5px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em; margin-bottom:12px; }
+
+.contador{ text-align:center; }
+.contador .num{ font-family:'JetBrains Mono', monospace; font-weight:700; font-size:28px; }
+.contador .label{ font-size:11.5px; color:var(--ink-soft); margin-top:2px; }
+
+.aviso-limite{
+  background:var(--paper-dim); border:1.5px solid var(--line); border-radius:12px; padding:12px 14px;
+  font-size:12px; color:var(--ink-soft); line-height:1.5; text-align:center;
+}
+
+.btn-add{
+  border:1.5px solid var(--ink); border-radius:13px; padding:11px; text-align:center;
+  font-family:'Sora', sans-serif; font-weight:700; font-size:13px; background:var(--card);
+}
+.form-add{ display:none; flex-direction:column; gap:8px; margin-top:12px; }
+.form-add.visivel{ display:flex; }
+.form-add input{
+  border:1.5px solid var(--ink); border-radius:11px; padding:10px 12px; font-size:13.5px;
+  font-family:'Sora', sans-serif; color:var(--ink); background:var(--card);
+}
+.toggle-tipo-membro{ display:flex; gap:6px; }
+.toggle-tipo-membro button{
+  flex:1; padding:11px 4px; border-radius:9px; border:1.5px solid var(--ink); font-family:'Sora', sans-serif; font-weight:700; font-size:11.5px; background:var(--card); color:var(--ink-soft);
+}
+.toggle-tipo-membro button.active{ background:var(--ink); color:#fff; }
+.btn-salvar-membro{
+  background:var(--ink); color:#fff; border:none; border-radius:11px; padding:11px;
+  font-family:'Sora', sans-serif; font-weight:700; font-size:13px;
+}
+.btn-salvar-membro:disabled{ opacity:.5; }
+
+.link-card{
+  display:none; flex-direction:column; gap:10px; margin-top:12px; border:1.5px solid var(--entrada); border-radius:13px; padding:14px; background:#F0FAF5;
+}
+.link-card.visivel{ display:flex; }
+.link-card .titulo{ font-family:'Sora', sans-serif; font-weight:800; font-size:13px; }
+.link-card .texto{ font-size:12px; color:var(--ink-soft); line-height:1.5; }
+.link-card .botoes{ display:flex; gap:8px; }
+.link-card button{
+  flex:1; padding:10px; border-radius:10px; border:1.5px solid var(--ink); font-family:'Sora', sans-serif; font-weight:700; font-size:12px; background:var(--card);
+}
+.link-card .compartilhar{ background:var(--entrada); color:#fff; border-color:var(--entrada); }
+
+.membro-card{ border:1.5px solid var(--ink); border-radius:13px; padding:12px 13px; display:flex; flex-direction:column; gap:8px; margin-bottom:8px; }
+.membro-card:last-child{ margin-bottom:0; }
+.membro-topo{ display:flex; align-items:center; gap:8px; }
+.membro-nome{ font-family:'Sora', sans-serif; font-weight:700; font-size:13.5px; flex:1; }
+.badge-dono{
+  font-size:9.5px; font-weight:800; background:var(--ink); color:#fff; padding:3px 8px; border-radius:100px; text-transform:uppercase;
+}
+.membro-telefone{ font-size:11.5px; color:var(--ink-soft); font-family:'JetBrains Mono', monospace; }
+.membro-acoes{ display:flex; gap:6px; margin-top:2px; }
+.membro-acoes button{
+  flex:1; padding:9px 4px; border-radius:9px; border:1.5px solid var(--ink); font-family:'Sora', sans-serif; font-weight:700; font-size:11px; background:var(--card); color:var(--ink-soft);
+}
+.membro-acoes button:disabled{ opacity:.5; }
+.membro-acoes .ativo{ background:var(--fixo); color:#fff; border-color:var(--fixo); }
+.membro-acoes .excluir{ color:var(--erro); }
+
+.vazio{ text-align:center; color:var(--ink-soft); font-size:12.5px; padding:16px 10px; }
+
+.acesso-negado{
+  border:1.5px solid var(--erro); border-radius:16px; padding:20px; text-align:center;
+  background:#FBEAEA;
+}
+.acesso-negado .titulo{ font-family:'Sora', sans-serif; font-weight:800; font-size:14px; color:var(--erro); margin-bottom:6px; }
+.acesso-negado .texto{ font-size:12.5px; color:var(--ink-soft); line-height:1.5; }
+
+.erro-msg{
+  background:#FBEAEA; color:var(--erro); font-size:12.5px; font-weight:600;
+  padding:10px 14px; border-radius:10px; display:none;
+}
+.toast{
+  position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+  background:var(--ink); color:var(--paper); padding:12px 20px; border-radius:100px;
+  font-family:'Sora', sans-serif; font-size:13px; font-weight:600; display:none; white-space:nowrap; z-index:10;
+}
+
+.modal-overlay{
+  display:none; position:fixed; inset:0; background:rgba(22,38,31,.55);
+  align-items:center; justify-content:center; z-index:50; padding:24px;
+}
+.modal-overlay.visivel{ display:flex; }
+.modal-card{
+  background:var(--card); border:1.5px solid var(--ink); border-radius:18px; padding:22px 20px;
+  max-width:340px; width:100%; box-shadow:0 20px 40px rgba(0,0,0,.25);
+}
+.modal-titulo{ font-family:'Sora', sans-serif; font-weight:800; font-size:15.5px; margin-bottom:8px; }
+.modal-mensagem{ font-size:13px; line-height:1.5; color:var(--ink-soft); margin-bottom:18px; }
+.modal-botoes{ display:flex; gap:8px; }
+.modal-botoes button{
+  flex:1; padding:11px; border-radius:11px; font-family:'Sora', sans-serif; font-weight:700; font-size:13px; border:1.5px solid var(--ink);
+}
+.modal-cancelar{ background:var(--card); color:var(--ink-soft); }
+.modal-confirmar{ background:var(--erro); color:#fff; border-color:var(--erro); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="nav-btn" onclick="window.location.href='/configuracoes.html'">←</div>
+  <h1>Membros</h1>
+  <div class="nav-btn" onclick="location.reload()">🔄</div>
+</div>
+
+<div class="wrap">
+
+  <div class="erro-msg" id="erroMsg"></div>
+
+  <div class="acesso-negado" id="acessoNegado" style="display:none;">
+    <div class="titulo">Só o dono da conta</div>
+    <div class="texto">Essa área é só pra quem criou a conta gerenciar quem faz parte dela. Fala com o dono se precisar de alguma mudança aqui.</div>
+  </div>
+
+  <div class="secao" id="secaoContador">
+    <div class="contador">
+      <div class="num" id="contadorAtual">0 / 0</div>
+      <div class="label">pessoas na conta</div>
+    </div>
+  </div>
+
+  <div class="secao" id="secaoAdicionar">
+    <div class="secao-titulo">Adicionar pessoa</div>
+    <div class="btn-add" id="btnAbrirAdd" onclick="alternarFormAdd()">+ Adicionar pessoa</div>
+    <div class="aviso-limite" id="avisoLimite" style="display:none;"></div>
+
+    <div class="form-add" id="formAdd">
+      <input type="text" id="novoNome" placeholder="Nome da pessoa">
+      <input type="tel" id="novoTelefone" placeholder="Telefone">
+      <div class="toggle-tipo-membro">
+        <button type="button" class="active" id="btnAdulto" onclick="setVisaoNovo(true)">Adulto (vê tudo)</button>
+        <button type="button" id="btnDependente" onclick="setVisaoNovo(false)">Dependente (só o próprio)</button>
+      </div>
+      <button class="btn-salvar-membro" id="btnSalvarMembro" onclick="adicionarMembro()">Adicionar</button>
+    </div>
+
+    <div class="link-card" id="linkCard">
+      <div class="titulo">Pessoa adicionada ✓</div>
+      <div class="texto">Manda esse link pra ela — assim que abrir, já entra direto na conta, sem precisar de senha.</div>
+      <div class="botoes">
+        <button onclick="copiarLink()">Copiar link</button>
+        <button class="compartilhar" onclick="compartilharLink()">Compartilhar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="secao" id="secaoLista">
+    <div class="secao-titulo">Quem está na conta</div>
+    <div id="listaMembros"></div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-card">
+    <div class="modal-titulo" id="modalTitulo"></div>
+    <div class="modal-mensagem" id="modalMensagem"></div>
+    <div class="modal-botoes">
+      <button class="modal-cancelar" onclick="fecharModal()">Cancelar</button>
+      <button class="modal-confirmar" id="modalBtnConfirmar">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '/api';
+const token = localStorage.getItem('meubolso_token');
+
+if (!token) {
+  window.location.href = '/index.html';
+}
+
+let membrosCache = [];
+let limiteMembros = 1;
+let visaoNovoMembro = true;
+let linkGerado = '';
+
+function mostrarErro(msg) {
+  const el = document.getElementById('erroMsg');
+  el.textContent = msg;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 4000);
+}
+
+function mostrarToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 2200);
+}
+
+let acaoConfirmada = null;
+
+function abrirModal(titulo, mensagem, textoBotao, callback) {
+  document.getElementById('modalTitulo').textContent = titulo;
+  document.getElementById('modalMensagem').textContent = mensagem;
+  document.getElementById('modalBtnConfirmar').textContent = textoBotao;
+  acaoConfirmada = callback;
+  document.getElementById('modalOverlay').classList.add('visivel');
+}
+
+function fecharModal() {
+  document.getElementById('modalOverlay').classList.remove('visivel');
+  acaoConfirmada = null;
+}
+
+document.getElementById('modalBtnConfirmar').addEventListener('click', () => {
+  const acao = acaoConfirmada;
+  fecharModal();
+  if (acao) acao();
+});
+
+async function carregarMembros() {
+  try {
+    const res = await fetch(`${API}/membros`, { headers: { 'x-token': token } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.erro || 'Erro ao buscar membros.');
+
+    membrosCache = data.membros || [];
+    limiteMembros = data.limite_membros || 1;
+
+    document.getElementById('contadorAtual').textContent = `${membrosCache.length} / ${limiteMembros}`;
+
+    const cheio = membrosCache.length >= limiteMembros;
+    document.getElementById('btnAbrirAdd').style.display = cheio ? 'none' : 'block';
+    const aviso = document.getElementById('avisoLimite');
+    if (cheio) {
+      aviso.style.display = 'block';
+      aviso.textContent = `Seu plano permite no máximo ${limiteMembros} pessoa(s). Troque de plano em Configurações pra adicionar mais.`;
+    } else {
+      aviso.style.display = 'none';
+    }
+
+    renderizarMembros();
+  } catch (e) {
+    console.error(e);
+    if (e.message && e.message.includes('Só o dono')) {
+      document.getElementById('acessoNegado').style.display = 'block';
+      document.getElementById('secaoContador').style.display = 'none';
+      document.getElementById('secaoAdicionar').style.display = 'none';
+      document.getElementById('secaoLista').style.display = 'none';
+    } else {
+      mostrarErro('Não foi possível carregar os membros.');
+    }
+  }
+}
+
+function renderizarMembros() {
+  const lista = document.getElementById('listaMembros');
+  if (membrosCache.length === 0) {
+    lista.innerHTML = '<div class="vazio">Nenhum membro ainda.</div>';
+    return;
+  }
+
+  lista.innerHTML = membrosCache.map(m => {
+    const ehDono = m.papel === 'dono';
+    return `
+      <div class="membro-card">
+        <div class="membro-topo">
+          <div class="membro-nome">${escapeHtml(m.nome)}</div>
+          ${ehDono ? '<span class="badge-dono">Dono</span>' : ''}
+        </div>
+        <div class="membro-telefone">${escapeHtml(m.telefone || '—')}</div>
+        ${!ehDono ? `
+          <div class="membro-acoes">
+            <button id="btnVer${m.id}" class="${m.visao_completa ? 'ativo' : ''}" onclick="alternarVisaoMembro(${m.id}, true)">Vê tudo</button>
+            <button id="btnSo${m.id}" class="${!m.visao_completa ? 'ativo' : ''}" onclick="alternarVisaoMembro(${m.id}, false)">Só o próprio</button>
+          </div>
+          <div class="membro-acoes">
+            <button class="excluir" onclick="solicitarRemoverMembro(${m.id}, '${escapeParaAtributo(m.nome)}')">Remover da conta</button>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+async function alternarVisaoMembro(id, visao) {
+  const btnVer = document.getElementById(`btnVer${id}`);
+  const btnSo = document.getElementById(`btnSo${id}`);
+  if (btnVer) btnVer.disabled = true;
+  if (btnSo) btnSo.disabled = true;
+
+  try {
+    const res = await fetch(`${API}/membros/${id}/visao`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'x-token': token },
+      body: JSON.stringify({ visao_completa: visao })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.erro || 'Erro ao atualizar.');
+
+    const membro = membrosCache.find(m => m.id === id);
+    if (membro) membro.visao_completa = visao;
+    renderizarMembros();
+    mostrarToast('Atualizado ✓');
+  } catch (e) {
+    mostrarErro(e.message);
+    if (btnVer) btnVer.disabled = false;
+    if (btnSo) btnSo.disabled = false;
+  }
+}
+
+function solicitarRemoverMembro(id, nome) {
+  abrirModal(
+    'Remover da conta',
+    `Remover "${nome}" da conta? Ela vai perder o acesso a esse histórico compartilhado. Essa ação não pode ser desfeita.`,
+    'Remover',
+    () => removerMembro(id)
+  );
+}
+
+async function removerMembro(id) {
+  try {
+    const res = await fetch(`${API}/membros/${id}`, {
+      method: 'DELETE',
+      headers: { 'x-token': token }
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.erro || 'Erro ao remover.');
+    mostrarToast('Removido da conta.');
+    await carregarMembros();
+  } catch (e) {
+    mostrarErro(e.message);
+  }
+}
+
+function alternarFormAdd() {
+  document.getElementById('formAdd').classList.toggle('visivel');
+  document.getElementById('linkCard').classList.remove('visivel');
+}
+
+function setVisaoNovo(valor) {
+  visaoNovoMembro = valor;
+  document.getElementById('btnAdulto').classList.toggle('active', valor === true);
+  document.getElementById('btnDependente').classList.toggle('active', valor === false);
+}
+
+async function adicionarMembro() {
+  const nome = document.getElementById('novoNome').value.trim();
+  const telefone = document.getElementById('novoTelefone').value.trim();
+
+  if (!nome) {
+    mostrarErro('Digite o nome da pessoa.');
+    return;
+  }
+  if (!telefone) {
+    mostrarErro('Digite o telefone da pessoa.');
+    return;
+  }
+
+  const btn = document.getElementById('btnSalvarMembro');
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(`${API}/membros`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-token': token },
+      body: JSON.stringify({ nome, telefone, visao_completa: visaoNovoMembro })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.erro || 'Erro ao adicionar.');
+
+    linkGerado = `${window.location.origin}/entrar.html?token=${data.token}`;
+    document.getElementById('linkCard').classList.add('visivel');
+    document.getElementById('novoNome').value = '';
+    document.getElementById('novoTelefone').value = '';
+    setVisaoNovo(true);
+
+    mostrarToast('Pessoa adicionada ✓');
+    await carregarMembros();
+  } catch (e) {
+    mostrarErro(e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function copiarLink() {
+  try {
+    await navigator.clipboard.writeText(linkGerado);
+    mostrarToast('Link copiado ✓');
+  } catch (e) {
+    mostrarErro('Não foi possível copiar. Copie manualmente.');
+  }
+}
+
+async function compartilharLink() {
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: 'Meu Bolso',
+        text: 'Toca nesse link pra entrar na nossa conta do Meu Bolso:',
+        url: linkGerado
+      });
+    } catch (e) {
+      // cancelou o compartilhamento, sem problema
+    }
+  } else {
+    copiarLink();
+  }
+}
+
+function escapeHtml(texto) {
+  const div = document.createElement('div');
+  div.textContent = texto;
+  return div.innerHTML;
+}
+
+function escapeParaAtributo(texto) {
+  return String(texto)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+carregarMembros();
+</script>
+</body>
+</html>
