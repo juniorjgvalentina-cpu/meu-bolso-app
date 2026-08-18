@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#FFFFFF">
+<link rel="manifest" href="/manifest.json">
+<title>Meu Bolso</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+:root{
+  --ink:#16261F;
+  --ink-soft:#3C4B43;
+  --paper:#FAF7F0;
+  --paper-dim:#F0ECE1;
+  --card:#FFFFFF;
+  --accent:#E8622C;
+  --accent-dark:#C64F1E;
+  --line:#E4DFD1;
+  --entrada:#2F9E68;
+  --erro:#D64545;
+}
+*{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; touch-action:manipulation;}
+html{ touch-action:manipulation; }
+html, body{ height:100%; }
+body{
+  background:#FFFFFF;
+  font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color:var(--ink);
+  height:100dvh;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  overscroll-behavior:none;
+  padding-bottom:env(safe-area-inset-bottom);
+}
+.wrap{
+  max-width:440px; margin:0 auto; width:100%;
+  padding:44px 22px 32px; display:flex; flex-direction:column; gap:16px;
+  flex:1; overflow-y:auto; min-height:0; overscroll-behavior:contain;
+}
+
+.brand-mark{
+  width:52px; height:52px; border-radius:16px;
+  background:linear-gradient(135deg, var(--accent), var(--accent-dark));
+  display:flex; align-items:center; justify-content:center;
+  color:#fff; font-weight:800; font-size:22px; font-family:'JetBrains Mono', monospace;
+  margin-bottom:2px;
+}
+h1{ font-family:'Sora', sans-serif; font-size:21px; font-weight:800; line-height:1.3; letter-spacing:-.01em; }
+p.desc{ color:var(--ink-soft); font-size:13.5px; line-height:1.5; }
+
+.trial-chip{
+  align-self:flex-start;
+  background:#EAF5EE; color:var(--entrada);
+  font-family:'Sora', sans-serif; font-size:11px; font-weight:700; padding:6px 12px; border-radius:100px;
+}
+
+.field{
+  background:var(--card); border:1.5px solid var(--ink); border-radius:14px;
+  padding:13px 15px;
+}
+.field label{
+  display:block; font-size:10px; letter-spacing:.08em; text-transform:uppercase;
+  color:#A39B85; font-weight:700; margin-bottom:4px; font-family:'Sora', sans-serif;
+}
+.field input{
+  border:none; outline:none; width:100%; font-size:15px; font-weight:600;
+  color:var(--ink); background:transparent; font-family:'Sora', sans-serif;
+}
+.field input::placeholder{ color:#C8C2AF; font-weight:500; }
+
+.planos{ display:flex; flex-direction:column; gap:10px; margin-top:2px; }
+.plano-card{
+  background:var(--card); border:1.5px solid var(--line); border-radius:14px;
+  padding:14px 16px; display:flex; justify-content:space-between; align-items:center;
+  cursor:pointer;
+}
+.plano-card.selected{ border-color:var(--accent); background:#FEF2ED; }
+.plano-nome{ font-weight:700; font-size:14.5px; font-family:'Sora', sans-serif; }
+.plano-detalhe{ font-size:11.5px; color:var(--ink-soft); margin-top:2px; }
+.plano-check{
+  width:20px; height:20px; border-radius:50%; border:1.5px solid var(--line); flex-shrink:0;
+}
+.plano-card.selected .plano-check{ background:var(--accent); border-color:var(--accent); }
+
+.erro-msg{
+  background:#FBEAEA; color:var(--erro); font-size:12.5px; font-weight:600;
+  padding:10px 14px; border-radius:10px; display:none;
+}
+
+.btn-primary{
+  background:var(--ink); color:var(--paper); text-align:center; padding:16px;
+  border-radius:14px; font-weight:800; font-size:14.5px; border:none;
+  width:100%; margin-top:2px; font-family:'Sora', sans-serif;
+}
+.btn-primary:disabled{ opacity:.55; }
+
+.loading-screen{
+  position:fixed; inset:0; background:#FFFFFF; display:flex;
+  align-items:center; justify-content:center; font-size:13px; color:var(--ink-soft);
+}
+
+/* Explicação de como salvar na tela inicial */
+.explicacao{
+  border:1.5px solid var(--ink); border-radius:16px; padding:16px; margin-top:6px;
+  display:flex; flex-direction:column; gap:14px; align-items:center; text-align:center;
+}
+.explicacao .titulo{ font-family:'Sora', sans-serif; font-weight:800; font-size:14.5px; }
+.explicacao .subtitulo{ font-size:12px; color:var(--ink-soft); line-height:1.5; }
+
+.abas{
+  display:flex; gap:6px; background:var(--paper-dim); padding:4px; border-radius:12px; border:1.5px solid var(--ink); width:100%;
+}
+.abas button{
+  flex:1; padding:9px; border-radius:9px; border:none; font-family:'Sora', sans-serif; font-weight:700; font-size:12px;
+  background:transparent; color:var(--ink-soft);
+}
+.abas button.active{ background:var(--ink); color:#fff; }
+
+.passos-grupo{ display:none; flex-direction:column; gap:10px; align-items:center; width:100%; }
+.passos-grupo.visivel{ display:flex; }
+.passo{
+  display:flex; align-items:center; gap:10px; text-align:left; width:100%;
+  border:1.5px solid var(--line); border-radius:12px; padding:10px 12px;
+}
+.passo .num{
+  width:22px; height:22px; border-radius:50%; background:var(--ink); color:#fff; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-family:'Sora', sans-serif; font-weight:800; font-size:10.5px;
+}
+.passo .texto{ font-size:11.5px; color:var(--ink); line-height:1.4; }
+.passo .texto b{ font-weight:700; }
+</style>
+</head>
+<body>
+
+<div id="loadingScreen" class="loading-screen">Carregando...</div>
+
+<div class="wrap" id="cadastroForm" style="display:none;">
+  <div class="brand-mark">$</div>
+  <h1>Vamos começar. Só precisa disso uma vez.</h1>
+  <p class="desc">Depois do cadastro, o app abre direto — sem senha, sem login toda vez.</p>
+  <div class="trial-chip">4 dias grátis pra testar</div>
+
+  <div class="field">
+    <label>Nome</label>
+    <input type="text" id="inputNome" placeholder="Como podemos te chamar?" autocomplete="name">
+  </div>
+
+  <div class="field">
+    <label>Telefone</label>
+    <input type="tel" id="inputTelefone" placeholder="(11) 98765-4321" autocomplete="tel">
+  </div>
+
+  <div>
+    <label style="display:block; font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:#A39B85; font-weight:700; margin-bottom:8px; font-family:'Sora', sans-serif;">Quem vai usar a conta?</label>
+    <div class="planos" id="planosContainer">
+      <div class="plano-card selected" data-plano="individual">
+        <div>
+          <div class="plano-nome">Individual</div>
+          <div class="plano-detalhe">Só eu</div>
+        </div>
+        <div class="plano-check"></div>
+      </div>
+      <div class="plano-card" data-plano="casal">
+        <div>
+          <div class="plano-nome">Casal</div>
+          <div class="plano-detalhe">Eu e mais 1 pessoa, dados compartilhados</div>
+        </div>
+        <div class="plano-check"></div>
+      </div>
+      <div class="plano-card" data-plano="familia">
+        <div>
+          <div class="plano-nome">Família</div>
+          <div class="plano-detalhe">Até 6 pessoas, dados compartilhados</div>
+        </div>
+        <div class="plano-check"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="erro-msg" id="erroMsg"></div>
+
+  <button class="btn-primary" id="btnCriar">Criar minha conta</button>
+
+  <div class="explicacao">
+    <div class="titulo">📲 Deixa com cara de app</div>
+    <div class="subtitulo">Depois de criar sua conta, faz isso uma vez só e o Meu Bolso fica na sua tela inicial, como qualquer outro aplicativo.</div>
+
+    <div class="abas">
+      <button id="btnIphone" onclick="mostrarPassos('iphone')">iPhone (Safari)</button>
+      <button id="btnAndroid" onclick="mostrarPassos('android')">Android (Chrome)</button>
+    </div>
+
+    <div class="passos-grupo" id="passosIphone">
+      <div class="passo">
+        <div class="num">1</div>
+        <div class="texto">Toque no ícone de <b>compartilhar</b> (o quadrado com uma seta ↑) na parte de baixo do Safari</div>
+      </div>
+      <div class="passo">
+        <div class="num">2</div>
+        <div class="texto">Role a lista e toque em <b>"Adicionar à Tela de Início"</b></div>
+      </div>
+      <div class="passo">
+        <div class="num">3</div>
+        <div class="texto">Toque em <b>"Adicionar"</b> no canto superior</div>
+      </div>
+    </div>
+
+    <div class="passos-grupo" id="passosAndroid">
+      <div class="passo">
+        <div class="num">1</div>
+        <div class="texto">Toque nos <b>três pontinhos</b> (⋮) no canto superior direito do Chrome</div>
+      </div>
+      <div class="passo">
+        <div class="num">2</div>
+        <div class="texto">Toque em <b>"Adicionar à tela inicial"</b> (às vezes aparece como "Instalar app")</div>
+      </div>
+      <div class="passo">
+        <div class="num">3</div>
+        <div class="texto">Toque em <b>"Adicionar"</b> (ou "Instalar") pra confirmar</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '/api';
+
+function mostrarErro(msg) {
+  const el = document.getElementById('erroMsg');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function esconderErro() {
+  document.getElementById('erroMsg').style.display = 'none';
+}
+
+function mostrarPassos(tipo) {
+  document.getElementById('passosIphone').classList.toggle('visivel', tipo === 'iphone');
+  document.getElementById('passosAndroid').classList.toggle('visivel', tipo === 'android');
+  document.getElementById('btnIphone').classList.toggle('active', tipo === 'iphone');
+  document.getElementById('btnAndroid').classList.toggle('active', tipo === 'android');
+}
+
+const ehAndroid = /Android/.test(navigator.userAgent);
+mostrarPassos(ehAndroid ? 'android' : 'iphone');
+
+let planoSelecionado = 'individual';
+
+document.querySelectorAll('.plano-card').forEach(card => {
+  card.addEventListener('click', () => {
+    document.querySelectorAll('.plano-card').forEach(c => c.classList.remove('selected'));
+    card.classList.add('selected');
+    planoSelecionado = card.dataset.plano;
+  });
+});
+
+async function tentarLoginAutomatico() {
+  const token = localStorage.getItem('meubolso_token');
+  if (!token) {
+    document.getElementById('loadingScreen').style.display = 'none';
+    document.getElementById('cadastroForm').style.display = 'flex';
+    return;
+  }
+  try {
+    const res = await fetch(`${API}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token })
+    });
+    if (res.ok) {
+      window.location.href = '/home.html';
+      return;
+    }
+    localStorage.removeItem('meubolso_token');
+  } catch (e) {
+    console.error('Erro ao verificar login:', e);
+  }
+  document.getElementById('loadingScreen').style.display = 'none';
+  document.getElementById('cadastroForm').style.display = 'flex';
+}
+
+document.getElementById('btnCriar').addEventListener('click', async () => {
+  esconderErro();
+  const nome = document.getElementById('inputNome').value.trim();
+  const telefone = document.getElementById('inputTelefone').value.trim();
+
+  if (!nome) {
+    mostrarErro('Digite seu nome pra continuar.');
+    return;
+  }
+  if (!telefone || telefone.replace(/\D/g, '').length < 10) {
+    mostrarErro('Digite um telefone válido com DDD.');
+    return;
+  }
+
+  const btn = document.getElementById('btnCriar');
+  btn.disabled = true;
+  btn.textContent = 'Criando...';
+
+  try {
+    const res = await fetch(`${API}/cadastro`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nome, telefone, plano: planoSelecionado })
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      mostrarErro(data.erro || 'Erro ao criar cadastro. Tente novamente.');
+      btn.disabled = false;
+      btn.textContent = 'Criar minha conta';
+      return;
+    }
+
+    localStorage.setItem('meubolso_token', data.token);
+    window.location.href = '/home.html';
+  } catch (e) {
+    console.error('Erro no cadastro:', e);
+    mostrarErro('Não conseguimos conectar. Verifique sua internet e tente de novo.');
+    btn.disabled = false;
+    btn.textContent = 'Criar minha conta';
+  }
+});
+
+tentarLoginAutomatico();
+</script>
+</body>
+</html>
