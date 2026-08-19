@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#FFFFFF">
+<title>Meu Bolso — Painel</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+:root{
+  --ink:#16261F;
+  --ink-soft:#3C4B43;
+  --paper:#FAF7F0;
+  --paper-dim:#F0ECE1;
+  --card:#FFFFFF;
+  --accent:#E8622C;
+  --accent-dark:#C64F1E;
+  --line:#E4DFD1;
+  --entrada:#2F9E68;
+  --imprevisto:#D64545;
+  --fixo:#2F6FED;
+  --erro:#D64545;
+}
+*{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; touch-action:manipulation;}
+html{ touch-action:manipulation; }
+html, body{ height:100%; }
+body{
+  background:#FFFFFF;
+  font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color:var(--ink);
+  height:100dvh;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  overscroll-behavior:none;
+  padding-bottom:env(safe-area-inset-bottom);
+  padding-top:env(safe-area-inset-top);
+}
+
+.tela-login{
+  display:flex; flex-direction:column; justify-content:center; align-items:center; gap:16px;
+  height:100%; padding:24px; max-width:340px; margin:0 auto; width:100%;
+}
+.tela-login.escondida{ display:none; }
+.tela-login .titulo{ font-family:'Sora', sans-serif; font-weight:800; font-size:20px; }
+.tela-login input{
+  width:100%; border:1.5px solid var(--ink); border-radius:12px; padding:13px 14px; font-size:14px;
+  font-family:'Sora', sans-serif; color:var(--ink); background:var(--card);
+}
+.tela-login button{
+  width:100%; padding:13px; border-radius:13px; border:none; background:var(--ink); color:#fff;
+  font-family:'Sora', sans-serif; font-weight:800; font-size:13.5px;
+}
+
+.tela-painel{ display:none; flex-direction:column; height:100%; }
+.tela-painel.visivel{ display:flex; }
+
+.topbar{
+  display:flex; justify-content:space-between; align-items:center; gap:8px;
+  padding:14px 20px 10px;
+  max-width:520px; margin:0 auto; width:100%;
+  flex-shrink:0;
+}
+.topbar h1{ font-family:'Sora', sans-serif; font-weight:800; font-size:16px; flex:1; text-align:center; }
+.nav-btn{
+  width:38px; height:38px; border-radius:11px; background:var(--card);
+  border:1.5px solid var(--ink); display:flex; align-items:center; justify-content:center;
+  font-size:16px; color:var(--ink-soft); flex-shrink:0; transition:transform .1s;
+}
+.nav-btn:active{ transform:scale(0.9); background:var(--paper-dim); }
+.wrap{
+  max-width:520px; margin:0 auto; width:100%;
+  padding:6px 20px 24px; display:flex; flex-direction:column; gap:14px;
+  flex:1; overflow-y:auto; min-height:0; overscroll-behavior:contain;
+}
+
+.cards-resumo{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.card-resumo{ border:1.5px solid var(--ink); border-radius:14px; padding:12px; text-align:center; }
+.card-resumo.destaque{ grid-column:1 / -1; background:var(--ink); }
+.card-resumo.destaque .valor{ color:#fff; }
+.card-resumo.destaque .label{ color:rgba(255,255,255,.7); }
+.card-resumo .label{ font-size:10px; color:var(--ink-soft); font-weight:700; text-transform:uppercase; letter-spacing:.03em; }
+.card-resumo .valor{ font-family:'JetBrains Mono', monospace; font-weight:700; font-size:22px; margin-top:4px; }
+
+.chips-status{ display:flex; gap:6px; }
+.chip-status{ flex:1; border:1.5px solid var(--ink); border-radius:11px; padding:8px 4px; text-align:center; }
+.chip-status .n{ font-family:'JetBrains Mono', monospace; font-weight:700; font-size:15px; }
+.chip-status .l{ font-size:9.5px; color:var(--ink-soft); font-weight:700; }
+
+.busca-conta{
+  width:100%; border:1.5px solid var(--ink); border-radius:11px; padding:10px 12px; font-size:13px;
+  font-family:'Sora', sans-serif; color:var(--ink); background:var(--card);
+}
+
+.conta-card{ border:1.5px solid var(--ink); border-radius:14px; padding:13px; display:flex; flex-direction:column; gap:8px; }
+.conta-topo{ display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
+.conta-nome{ font-family:'Sora', sans-serif; font-weight:700; font-size:13.5px; }
+.conta-telefone{ font-size:11px; color:var(--ink-soft); font-family:'JetBrains Mono', monospace; margin-top:1px; }
+.badge{ font-size:9.5px; font-weight:800; padding:3px 8px; border-radius:100px; text-transform:uppercase; flex-shrink:0; white-space:nowrap; }
+.badge.ativo{ background:var(--entrada); color:#fff; }
+.badge.teste{ background:var(--fixo); color:#fff; }
+.badge.vencido{ background:var(--imprevisto); color:#fff; }
+.conta-info{ font-size:11.5px; color:var(--ink-soft); display:flex; flex-wrap:wrap; gap:4px 10px; }
+.conta-acoes{ display:flex; gap:6px; margin-top:2px; }
+.conta-acoes button{
+  flex:1; padding:9px 4px; border-radius:9px; border:1.5px solid var(--ink); font-family:'Sora', sans-serif; font-weight:700; font-size:11px; background:var(--card); color:var(--ink-soft);
+}
+.conta-acoes .pago{ background:var(--entrada); color:#fff; border-color:var(--entrada); }
+
+.vazio{ text-align:center; color:var(--ink-soft); font-size:12.5px; padding:20px 10px; }
+
+.erro-msg{
+  background:#FBEAEA; color:var(--erro); font-size:12.5px; font-weight:600;
+  padding:10px 14px; border-radius:10px; display:none;
+}
+.toast{
+  position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+  background:var(--ink); color:var(--paper); padding:12px 20px; border-radius:100px;
+  font-family:'Sora', sans-serif; font-size:13px; font-weight:600; display:none; white-space:nowrap; z-index:10;
+}
+
+.modal-overlay{
+  display:none; position:fixed; inset:0; background:rgba(22,38,31,.55);
+  align-items:center; justify-content:center; z-index:50; padding:24px;
+}
+.modal-overlay.visivel{ display:flex; }
+.modal-card{
+  background:var(--card); border:1.5px solid var(--ink); border-radius:18px; padding:22px 20px;
+  max-width:340px; width:100%; box-shadow:0 20px 40px rgba(0,0,0,.25);
+}
+.modal-titulo{ font-family:'Sora', sans-serif; font-weight:800; font-size:15.5px; margin-bottom:8px; }
+.modal-mensagem{ font-size:13px; line-height:1.5; color:var(--ink-soft); margin-bottom:14px; }
+.modal-input{
+  width:100%; border:1.5px solid var(--ink); border-radius:11px; padding:11px 12px; font-size:14px;
+  font-family:'Sora', sans-serif; color:var(--ink); margin-bottom:14px; display:none;
+}
+.modal-input.visivel{ display:block; }
+.modal-botoes{ display:flex; gap:8px; }
+.modal-botoes button{
+  flex:1; padding:11px; border-radius:11px; font-family:'Sora', sans-serif; font-weight:700; font-size:13px; border:1.5px solid var(--ink);
+}
+.modal-cancelar{ background:var(--card); color:var(--ink-soft); }
+.modal-confirmar{ background:var(--entrada); color:#fff; border-color:var(--entrada); }
+</style>
+</head>
+<body>
+
+<div class="tela-login" id="telaLogin">
+  <div class="titulo">🔒 Painel Meu Bolso</div>
+  <div class="erro-msg" id="erroLogin"></div>
+  <input type="text" id="inputUsuario" placeholder="Usuário" autocomplete="off">
+  <input type="password" id="inputSenha" placeholder="Senha">
+  <button onclick="fazerLogin()">Entrar</button>
+</div>
+
+<div class="tela-painel" id="telaPainel">
+
+  <div class="topbar">
+    <div class="nav-btn" onclick="mostrarLogin()">🚪</div>
+    <h1>Painel</h1>
+    <div class="nav-btn" onclick="carregarTudo(true)">🔄</div>
+  </div>
+
+  <div class="wrap">
+
+    <div class="erro-msg" id="erroPainel"></div>
+
+    <div class="cards-resumo">
+      <div class="card-resumo destaque">
+        <div class="label">Receita mensal recorrente</div>
+        <div class="valor" id="mrrValor">—</div>
+      </div>
+      <div class="card-resumo">
+        <div class="label">Contas</div>
+        <div class="valor" id="totalContas">—</div>
+      </div>
+      <div class="card-resumo">
+        <div class="label">Pessoas</div>
+        <div class="valor" id="totalMembros">—</div>
+      </div>
+    </div>
+
+    <div class="chips-status">
+      <div class="chip-status"><div class="n" id="statusAtivo">0</div><div class="l">Ativas</div></div>
+      <div class="chip-status"><div class="n" id="statusTeste">0</div><div class="l">Teste</div></div>
+      <div class="chip-status"><div class="n" id="statusVencido">0</div><div class="l">Vencidas</div></div>
+    </div>
+
+    <input type="text" class="busca-conta" id="buscaConta" placeholder="Buscar por nome ou telefone..." oninput="buscarComAtraso()">
+
+    <div id="listaContas"></div>
+
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-card">
+    <div class="modal-titulo" id="modalTitulo"></div>
+    <div class="modal-mensagem" id="modalMensagem"></div>
+    <input type="number" class="modal-input" id="modalInput" placeholder="Quantos dias?" inputmode="numeric">
+    <div class="modal-botoes">
+      <button class="modal-cancelar" onclick="fecharModal()">Cancelar</button>
+      <button class="modal-confirmar" id="modalBtnConfirmar">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '/api';
+
+function headersMaster() {
+  return {
+    'Content-Type': 'application/json',
+    'x-master-user': localStorage.getItem('master_user') || '',
+    'x-master-pass': localStorage.getItem('master_pass') || ''
+  };
+}
+
+function mostrarErro(elId, msg) {
+  const el = document.getElementById(elId);
+  el.textContent = msg;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+
+function mostrarToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 2200);
+}
+
+async function fazerLogin() {
+  const usuario = document.getElementById('inputUsuario').value.trim();
+  const senha = document.getElementById('inputSenha').value;
+
+  if (!usuario || !senha) {
+    mostrarErro('erroLogin', 'Preenche usuário e senha.');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API}/master/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ usuario, senha })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.erro || 'Erro ao entrar.');
+
+    localStorage.setItem('master_user', usuario);
+    localStorage.setItem('master_pass', senha);
+    mostrarPainel();
+  } catch (e) {
+    mostrarErro('erroLogin', e.message);
+  }
+}
+
+function mostrarPainel() {
+  document.getElementById('telaLogin').classList.add('escondida');
+  document.getElementById('telaPainel').classList.add('visivel');
+  carregarTudo();
+}
+
+function mostrarLogin() {
+  localStorage.removeItem('master_user');
+  localStorage.removeItem('master_pass');
+  document.getElementById('telaPainel').classList.remove('visivel');
+  document.getElementById('telaLogin').classList.remove('escondida');
+}
+
+function formatarMoeda(valor) {
+  return 'R$ ' + Number(valor).toFixed(2).replace('.', ',');
+}
+
+function formatarData(data) {
+  if (!data) return '—';
+  return new Date(data).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
+
+async function carregarTudo(mostrarConfirmacao) {
+  await Promise.all([carregarResumo(), carregarContas()]);
+  if (mostrarConfirmacao) mostrarToast('Atualizado ✓');
+}
+
+async function carregarResumo() {
+  try {
+    const res = await fetch(`${API}/master/resumo`, { headers: headersMaster() });
+    const data = await res.json();
+    if (!res.ok) {
+      if (res.status === 401) { mostrarLogin(); return; }
+      throw new Error(data.erro);
+    }
+
+    document.getElementById('mrrValor').textContent = formatarMoeda(data.mrr);
+    document.getElementById('totalContas').textContent = data.total_contas;
+    document.getElementById('totalMembros').textContent = data.total_membros;
+    document.getElementById('statusAtivo').textContent = data.por_status.ativo;
+    document.getElementById('statusTeste').textContent = data.por_status.teste;
+    document.getElementById('statusVencido').textContent = data.por_status.vencido;
+  } catch (e) {
+    mostrarErro('erroPainel', 'Não foi possível carregar o resumo.');
+  }
+}
+
+let contasCache = [];
+let nomesPlanoCache = {};
+let buscaTimer = null;
+
+function buscarComAtraso() {
+  clearTimeout(buscaTimer);
+  buscaTimer = setTimeout(carregarContas, 350);
+}
+
+async function carregarContas() {
+  try {
+    const busca = document.getElementById('buscaConta').value.trim();
+    const url = busca ? `${API}/master/contas?busca=${encodeURIComponent(busca)}` : `${API}/master/contas`;
+    const res = await fetch(url, { headers: headersMaster() });
+    const data = await res.json();
+    if (!res.ok) {
+      if (res.status === 401) { mostrarLogin(); return; }
+      throw new Error(data.erro);
+    }
+
+    contasCache = data.contas;
+    nomesPlanoCache = data.nomes_plano;
+    renderizarContas();
+  } catch (e) {
+    mostrarErro('erroPainel', 'Não foi possível carregar as contas.');
+  }
+}
+
+function renderizarContas() {
+  const lista = document.getElementById('listaContas');
+  if (contasCache.length === 0) {
+    lista.innerHTML = '<div class="vazio">Nenhuma conta encontrada.</div>';
+    return;
+  }
+
+  lista.innerHTML = contasCache.map(c => {
+    const nomePlano = nomesPlanoCache[c.plano] || c.plano;
+    const periodo = c.periodicidade === 'anual' ? 'ano' : 'mês';
+    return `
+      <div class="conta-card">
+        <div class="conta-topo">
+          <div>
+            <div class="conta-nome">${escapeHtml(c.dono_nome || 'Sem nome')}</div>
+            <div class="conta-telefone">${escapeHtml(c.dono_telefone || '—')}</div>
+          </div>
+          <span class="badge ${c.status_assinatura}">${c.status_assinatura}</span>
+        </div>
+        <div class="conta-info">
+          <span>${nomePlano} · ${formatarMoeda(c.valor_plano)}/${periodo}</span>
+          <span>${c.total_membros} pessoa(s)</span>
+          <span>Vence: ${formatarData(c.data_vencimento)}</span>
+          <span>Desde: ${formatarData(c.data_cadastro)}</span>
+        </div>
+        <div class="conta-acoes">
+          <button class="pago" onclick="solicitarMarcarPago(${c.id}, '${escapeParaAtributo(c.dono_nome || 'essa conta')}')">Marcar como pago</button>
+          <button onclick="solicitarConcederAcesso(${c.id}, '${escapeParaAtributo(c.dono_nome || 'essa conta')}')">Conceder acesso</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+let acaoConfirmada = null;
+
+function abrirModal(titulo, mensagem, textoBotao, callback, comInput) {
+  document.getElementById('modalTitulo').textContent = titulo;
+  document.getElementById('modalMensagem').textContent = mensagem;
+  document.getElementById('modalBtnConfirmar').textContent = textoBotao;
+  const input = document.getElementById('modalInput');
+  input.classList.toggle('visivel', !!comInput);
+  input.value = comInput ? '30' : '';
+  acaoConfirmada = callback;
+  document.getElementById('modalOverlay').classList.add('visivel');
+}
+
+function fecharModal() {
+  document.getElementById('modalOverlay').classList.remove('visivel');
+  acaoConfirmada = null;
+}
+
+document.getElementById('modalBtnConfirmar').addEventListener('click', () => {
+  const acao = acaoConfirmada;
+  const valorInput = document.getElementById('modalInput').value;
+  fecharModal();
+  if (acao) acao(valorInput);
+});
+
+function solicitarMarcarPago(id, nome) {
+  abrirModal(
+    'Marcar como pago',
+    `Confirma que "${nome}" pagou por fora (ex: Pix direto)? Isso estende o vencimento pelo ciclo normal do plano dela.`,
+    'Marcar como pago',
+    () => marcarPago(id)
+  );
+}
+
+async function marcarPago(id) {
+  try {
+    const res = await fetch(`${API}/master/contas/${id}/marcar-pago`, {
+      method: 'PUT',
+      headers: headersMaster()
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.erro);
+    mostrarToast('Marcado como pago ✓');
+    carregarTudo();
+  } catch (e) {
+    mostrarErro('erroPainel', e.message);
+  }
+}
+
+function solicitarConcederAcesso(id, nome) {
+  abrirModal(
+    'Conceder acesso grátis',
+    `Quantos dias de acesso grátis pra "${nome}"?`,
+    'Conceder',
+    (dias) => concederAcesso(id, dias),
+    true
+  );
+}
+
+async function concederAcesso(id, dias) {
+  const diasNum = parseInt(dias, 10);
+  if (!diasNum || diasNum <= 0) {
+    mostrarErro('erroPainel', 'Número de dias inválido.');
+    return;
+  }
+  try {
+    const res = await fetch(`${API}/master/contas/${id}/conceder-acesso`, {
+      method: 'PUT',
+      headers: headersMaster(),
+      body: JSON.stringify({ dias: diasNum })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.erro);
+    mostrarToast(`${diasNum} dias concedidos ✓`);
+    carregarTudo();
+  } catch (e) {
+    mostrarErro('erroPainel', e.message);
+  }
+}
+
+function escapeHtml(texto) {
+  const div = document.createElement('div');
+  div.textContent = texto;
+  return div.innerHTML;
+}
+
+function escapeParaAtributo(texto) {
+  return String(texto)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+if (localStorage.getItem('master_user') && localStorage.getItem('master_pass')) {
+  mostrarPainel();
+}
+</script>
+</body>
+</html>
