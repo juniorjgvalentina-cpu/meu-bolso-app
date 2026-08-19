@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#FFFFFF">
+<link rel="manifest" href="/manifest.json">
+<title>Meu Bolso — Entrando...</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@600;800&display=swap');
+*{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; touch-action:manipulation;}
+body{
+  background:#FFFFFF; height:100dvh; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:14px; padding:24px; text-align:center;
+  font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  overscroll-behavior:none;
+  padding-top:calc(24px + env(safe-area-inset-top));
+  padding-bottom:calc(24px + env(safe-area-inset-bottom));
+}
+.titulo{ font-family:'Sora', sans-serif; font-weight:800; font-size:19px; color:#16261F; }
+.msg{ font-size:13.5px; color:#3C4B43; max-width:280px; line-height:1.5; }
+.spinner{
+  width:32px; height:32px; border:3px solid #E4DFD1; border-top-color:#16261F; border-radius:50%;
+  animation:girar 0.8s linear infinite;
+}
+@keyframes girar{ to{ transform:rotate(360deg); } }
+.erro{ color:#D64545; font-weight:700; }
+
+.tutorial{ display:none; flex-direction:column; align-items:center; gap:18px; width:100%; max-width:320px; }
+.tutorial.visivel{ display:flex; }
+.tutorial .passo{
+  display:flex; align-items:center; gap:12px; text-align:left; width:100%;
+  border:1.5px solid #16261F; border-radius:13px; padding:12px 14px;
+}
+.tutorial .passo .num{
+  width:26px; height:26px; border-radius:50%; background:#16261F; color:#fff; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-family:'Sora', sans-serif; font-weight:800; font-size:12px;
+}
+.tutorial .passo .texto{ font-size:12.5px; color:#16261F; line-height:1.4; }
+.tutorial .passo .texto b{ font-weight:700; }
+.btn-continuar{
+  background:linear-gradient(135deg, #E8622C, #C64F1E); color:#fff; border:1.5px solid #16261F;
+  border-radius:15px; padding:14px 28px; font-family:'Sora', sans-serif; font-weight:800; font-size:13.5px;
+  box-shadow:0 12px 24px -8px rgba(232,98,44,.5); margin-top:4px;
+}
+</style>
+</head>
+<body>
+
+<div class="spinner" id="spinner"></div>
+<div class="titulo" id="tituloPrincipal">Meu Bolso</div>
+<div class="msg" id="mensagem">Entrando na sua conta...</div>
+
+<div class="tutorial" id="tutorial">
+  <div class="titulo">Deixa com cara de app 📲</div>
+  <div class="msg">Faz isso uma vez só, e o Meu Bolso fica na sua tela inicial como qualquer outro aplicativo:</div>
+  <div class="passo">
+    <div class="num">1</div>
+    <div class="texto">Toque no ícone de <b>compartilhar</b> (o quadrado com uma seta ↑) na parte de baixo do Safari</div>
+  </div>
+  <div class="passo">
+    <div class="num">2</div>
+    <div class="texto">Role a lista e toque em <b>"Adicionar à Tela de Início"</b></div>
+  </div>
+  <div class="passo">
+    <div class="num">3</div>
+    <div class="texto">Toque em <b>"Adicionar"</b> no canto superior</div>
+  </div>
+  <button class="btn-continuar" onclick="continuarParaHome()">Entendi, continuar →</button>
+</div>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+const token = params.get('token');
+
+function ehIOS() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+}
+function jaEhAppInstalado() {
+  return window.navigator.standalone === true;
+}
+
+function continuarParaHome() {
+  window.location.href = '/home.html';
+}
+
+if (!token) {
+  document.getElementById('spinner').style.display = 'none';
+  document.getElementById('mensagem').innerHTML = '<span class="erro">Link inválido.</span><br>Peça pra quem te convidou mandar o link de novo.';
+} else {
+  localStorage.setItem('meubolso_token', token);
+
+  const jaViuTutorial = localStorage.getItem('meubolso_tutorial_visto');
+
+  if (ehIOS() && !jaEhAppInstalado() && !jaViuTutorial) {
+    localStorage.setItem('meubolso_tutorial_visto', '1');
+    document.getElementById('spinner').style.display = 'none';
+    document.getElementById('tituloPrincipal').style.display = 'none';
+    document.getElementById('mensagem').style.display = 'none';
+    document.getElementById('tutorial').classList.add('visivel');
+  } else {
+    setTimeout(continuarParaHome, 600);
+  }
+}
+</script>
+</body>
+</html>
