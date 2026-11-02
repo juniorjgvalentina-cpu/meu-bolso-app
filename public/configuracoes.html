@@ -149,6 +149,22 @@ body{
 }
 .form-novo-item .btn-salvar-item:disabled{ opacity:.5; }
 
+.seg-form{ display:none; flex-direction:column; gap:8px; margin-top:10px; }
+.seg-form.visivel{ display:flex; }
+.seg-form input{
+  border:1.5px solid var(--ink); border-radius:11px; padding:10px 12px; font-size:15px;
+  font-family:'Sora', sans-serif; color:var(--ink); background:var(--card);
+}
+.seg-form input.pin{ letter-spacing:.35em; text-align:center; font-size:18px; }
+.seg-form .explica{ font-size:11.5px; color:var(--ink-soft); line-height:1.45; }
+.seg-form .lista-apaga{ font-size:11.5px; color:var(--ink); line-height:1.6; background:#FBEAEA; border-radius:10px; padding:9px 12px; }
+.seg-form button{ border:none; border-radius:11px; padding:11px; font-family:'Sora', sans-serif; font-weight:700; font-size:13px; color:#fff; background:var(--ink); }
+.seg-form button.perigo{ background:var(--erro); }
+.seg-form button:disabled{ opacity:.5; }
+.status-pin{ font-size:11px; font-weight:700; }
+.status-pin.ok{ color:var(--entrada); }
+.status-pin.falta{ color:var(--erro); }
+
 .cartao-item{ border:1.5px solid var(--line); border-radius:13px; padding:11px 12px; margin-bottom:8px; display:flex; flex-direction:column; gap:8px; }
 .cartao-item .topo{ display:flex; align-items:center; gap:8px; }
 .cartao-item .nome{ flex:1; min-width:0; font-family:'Sora', sans-serif; font-weight:700; font-size:13.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -233,6 +249,25 @@ body{
       <input type="tel" id="perfilInputTelefone" placeholder="Telefone">
       <div class="aviso-telefone">É esse telefone que você vai usar se precisar recuperar o acesso em outro aparelho.</div>
       <button id="btnSalvarPerfil" onclick="salvarPerfil()">Salvar</button>
+    </div>
+  </div>
+
+  <div class="secao">
+    <div class="secao-titulo">Segurança</div>
+    <div class="acao-item" onclick="alternarFormPin()">
+      <span class="icone">🔒</span>
+      <div class="texto">
+        <div class="titulo">PIN de segurança</div>
+        <div class="desc">Pedido só quando você entrar num celular novo · <span class="status-pin" id="statusPin">…</span></div>
+      </div>
+      <span class="seta">›</span>
+    </div>
+    <div class="seg-form" id="formPin">
+      <input type="password" class="pin" id="pinAtual" inputmode="numeric" maxlength="4" placeholder="PIN atual" autocomplete="current-password">
+      <input type="tel" id="pinTelefone" placeholder="Confirme seu telefone (com DDD)">
+      <input type="password" class="pin" id="pinNovo" inputmode="numeric" maxlength="4" placeholder="PIN novo (4 números)" autocomplete="new-password">
+      <input type="password" class="pin" id="pinNovo2" inputmode="numeric" maxlength="4" placeholder="Repita o PIN novo" autocomplete="new-password">
+      <button id="btnSalvarPin" onclick="salvarPin()">Salvar PIN</button>
     </div>
   </div>
 
@@ -337,6 +372,23 @@ body{
       </div>
       <span class="seta">›</span>
     </div>
+    <div class="acao-item perigo" id="itemZerar" onclick="alternarFormZerar()">
+      <span class="icone">🧹</span>
+      <div class="texto">
+        <div class="titulo">Zerar tudo e começar de novo</div>
+        <div class="desc">Apaga os lançamentos, mas mantém sua conta</div>
+      </div>
+      <span class="seta">›</span>
+    </div>
+    <div class="seg-form" id="formZerar">
+      <div class="lista-apaga">Vai apagar: todos os lançamentos, A Pagar &amp; Receber, cartões e faturas, dicionário, metas e orçamentos.<br>Continua: seu cadastro, as pessoas da conta e o seu plano.</div>
+      <input type="password" class="pin" id="zerarPin" inputmode="numeric" maxlength="4" placeholder="Seu PIN" autocomplete="current-password">
+      <input type="tel" id="zerarTelefone" placeholder="Confirme seu telefone (com DDD)">
+      <div class="explica" id="zerarExplicaPin">Aproveite e crie seu PIN de 4 números. Ele só é pedido se você trocar de celular.</div>
+      <input type="password" class="pin" id="zerarPinNovo" inputmode="numeric" maxlength="4" placeholder="Crie um PIN (4 números)" autocomplete="new-password">
+      <input type="password" class="pin" id="zerarPinNovo2" inputmode="numeric" maxlength="4" placeholder="Repita o PIN" autocomplete="new-password">
+      <button class="perigo" id="btnZerar" onclick="solicitarZerar()">Zerar tudo</button>
+    </div>
     <div class="acao-item perigo" onclick="solicitarExcluirCadastro()">
       <span class="icone">🗑️</span>
       <div class="texto">
@@ -422,7 +474,8 @@ async function carregarPerfil() {
     const data = await res.json();
     if (!res.ok) throw new Error('Sessão inválida.');
 
-    perfilAtual = { nome: data.membro.nome || '', telefone: data.membro.telefone || '', papel: data.membro.papel };
+    perfilAtual = { nome: data.membro.nome || '', telefone: data.membro.telefone || '', papel: data.membro.papel, tem_pin: !!data.membro.tem_pin };
+    atualizarTelaSeguranca();
     document.getElementById('perfilNome').textContent = perfilAtual.nome || '—';
     document.getElementById('perfilTelefone').textContent = perfilAtual.telefone || '—';
     document.getElementById('perfilPapel').textContent = data.membro.papel === 'dono' ? 'Dono da conta' : 'Membro';
@@ -789,6 +842,108 @@ function escapeHtml(texto) {
   const div = document.createElement('div');
   div.textContent = texto;
   return div.innerHTML;
+}
+
+// ===== Segurança: PIN e zerar tudo =====
+function atualizarTelaSeguranca() {
+  const temPin = perfilAtual.tem_pin;
+  const st = document.getElementById('statusPin');
+  st.textContent = temPin ? 'criado ✓' : 'ainda não criado';
+  st.className = 'status-pin ' + (temPin ? 'ok' : 'falta');
+  document.getElementById('pinAtual').style.display = temPin ? 'block' : 'none';
+  document.getElementById('pinTelefone').style.display = temPin ? 'none' : 'block';
+  document.getElementById('btnSalvarPin').textContent = temPin ? 'Trocar PIN' : 'Criar PIN';
+  document.getElementById('zerarPin').style.display = temPin ? 'block' : 'none';
+  document.getElementById('zerarTelefone').style.display = temPin ? 'none' : 'block';
+  ['zerarExplicaPin', 'zerarPinNovo', 'zerarPinNovo2'].forEach(id => {
+    document.getElementById(id).style.display = temPin ? 'none' : 'block';
+  });
+  document.getElementById('itemZerar').style.display = perfilAtual.papel === 'dono' ? 'flex' : 'none';
+}
+
+function limparCampos(ids) { ids.forEach(id => { document.getElementById(id).value = ''; }); }
+
+function alternarFormPin() {
+  const f = document.getElementById('formPin');
+  f.classList.toggle('visivel');
+  limparCampos(['pinAtual', 'pinTelefone', 'pinNovo', 'pinNovo2']);
+}
+
+function alternarFormZerar() {
+  const f = document.getElementById('formZerar');
+  f.classList.toggle('visivel');
+  limparCampos(['zerarPin', 'zerarTelefone', 'zerarPinNovo', 'zerarPinNovo2']);
+}
+
+async function salvarPin() {
+  const temPin = perfilAtual.tem_pin;
+  const pinAtual = document.getElementById('pinAtual').value.trim();
+  const telefone = document.getElementById('pinTelefone').value.trim();
+  const novo = document.getElementById('pinNovo').value.trim();
+  const novo2 = document.getElementById('pinNovo2').value.trim();
+  if (temPin && !/^\d{4}$/.test(pinAtual)) { mostrarErro('Digite seu PIN atual.'); return; }
+  if (!temPin && telefone.replace(/\D/g, '').length < 10) { mostrarErro('Confirme seu telefone com DDD.'); return; }
+  if (!/^\d{4}$/.test(novo)) { mostrarErro('O PIN novo precisa ter 4 números.'); return; }
+  if (novo !== novo2) { mostrarErro('Os dois PINs novos não estão iguais.'); return; }
+
+  const btn = document.getElementById('btnSalvarPin');
+  btn.disabled = true;
+  try {
+    const res = await fetch(`${API}/perfil/pin`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'x-token': token },
+      body: JSON.stringify({ pin_atual: pinAtual || undefined, telefone: telefone || undefined, pin_novo: novo })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.erro || 'Erro ao salvar o PIN.');
+    perfilAtual.tem_pin = true;
+    atualizarTelaSeguranca();
+    document.getElementById('formPin').classList.remove('visivel');
+    mostrarToast(temPin ? 'PIN trocado ✓' : 'PIN criado ✓');
+  } catch (e) {
+    mostrarErro(e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function solicitarZerar() {
+  const temPin = perfilAtual.tem_pin;
+  const pin = document.getElementById('zerarPin').value.trim();
+  const telefone = document.getElementById('zerarTelefone').value.trim();
+  const novo = document.getElementById('zerarPinNovo').value.trim();
+  const novo2 = document.getElementById('zerarPinNovo2').value.trim();
+  if (temPin && !/^\d{4}$/.test(pin)) { mostrarErro('Digite seu PIN pra confirmar.'); return; }
+  if (!temPin) {
+    if (telefone.replace(/\D/g, '').length < 10) { mostrarErro('Confirme seu telefone com DDD.'); return; }
+    if (!/^\d{4}$/.test(novo)) { mostrarErro('Crie um PIN com 4 números.'); return; }
+    if (novo !== novo2) { mostrarErro('Os dois PINs não estão iguais.'); return; }
+  }
+  abrirModal(
+    'Zerar tudo',
+    'Tem certeza? Todos os lançamentos, contas a pagar/receber, cartões, faturas, dicionário, metas e orçamentos serão apagados PRA SEMPRE. Sua conta e seu plano continuam. Não tem como desfazer.',
+    'Sim, zerar tudo',
+    () => zerarTudo({ pin: pin || undefined, telefone: telefone || undefined, pin_novo: temPin ? undefined : novo })
+  );
+}
+
+async function zerarTudo(body) {
+  const btn = document.getElementById('btnZerar');
+  btn.disabled = true;
+  try {
+    const res = await fetch(`${API}/conta/zerar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-token': token },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.erro || 'Erro ao zerar.');
+    mostrarToast('Tudo zerado ✓ Começando de novo...');
+    setTimeout(() => { window.location.href = '/home.html'; }, 1300);
+  } catch (e) {
+    mostrarErro(e.message);
+    btn.disabled = false;
+  }
 }
 
 // ===== Meus cartões =====

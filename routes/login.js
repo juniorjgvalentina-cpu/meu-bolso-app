@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const { gerarToken } = require('../utils/token');
-const { conferirPin } = require('../utils/pin');
+const { conferirPin, confirmarIdentidade, gerarHashPin, pinValido } = require('../utils/pin');
 const autenticar = require('../middleware/autenticar');
 
 // Confere se uma conta esta vencida na hora do login (alem do job diario,
@@ -32,7 +32,7 @@ router.post('/login', async (req, res) => {
   const client = await pool.connect();
   try {
     const membroResult = await client.query(
-      `SELECT m.id, m.nome, m.telefone, m.papel, m.conta_id
+      `SELECT m.id, m.nome, m.telefone, m.papel, m.conta_id, (m.pin_hash IS NOT NULL) AS tem_pin
        FROM membros m WHERE m.token_acesso = $1`,
       [token]
     );
@@ -211,6 +211,71 @@ router.delete('/perfil', autenticar, async (req, res) => {
   } catch (err) {
     console.error('Erro ao excluir cadastro:', err);
     res.status(500).json({ erro: 'Erro ao excluir cadastro. Tente novamente.' });
+  }
+});
+
+// Criar ou trocar o PIN de seguranca (Configuracoes).
+router.put('/perfil/pin', autenticar, async (req, res) => {
+  const { pin_atual, telefone, pin_novo } = req.body;
+  if (!pinValido(pin_novo)) {
+    return res.status(400).json({ erro: 'O PIN novo precisa ter 4 numeros.' });
+  }
+  try {
+    const conf = await confirmarIdentidade(pool, req.membro.id, { pin: pin_atual, telefone });
+    if (!conf.ok) return res.status(conf.status).json({ erro: conf.erro });
+    await pool.query(
+      `UPDATE membros SET pin_hash = $1, pin_tentativas = 0, pin_bloqueado_ate = NULL WHERE id = $2`,
+      [gerarHashPin(pin_novo), req.membro.id]
+    );
+    res.json({ status: 'ok' });
+  } catch (err) {
+    console.error('Erro ao salvar PIN:', err);
+    res.status(500).json({ erro: 'Erro ao salvar o PIN.' });
+  }
+});
+
+// Zerar tudo e comecar de novo: apaga lancamentos, contas a pagar/receber,
+// cartoes (e faturas), dicionario, metas e orcamentos da conta. O cadastro,
+// as pessoas da conta e a assinatura continuam. So o dono pode, e precisa
+// confirmar com PIN (ou telefone, se ainda nao tem PIN). Da pra criar um
+// PIN novo junto.
+router.post('/conta/zerar', autenticar, async (req, res) => {
+  if (req.membro.papel !== 'dono') {
+    return res.status(403).json({ erro: 'Só o dono da conta pode zerar tudo.' });
+  }
+  const { pin, telefone, pin_novo } = req.body;
+  if (pin_novo !== undefined && pin_novo !== null && pin_novo !== '' && !pinValido(pin_novo)) {
+    return res.status(400).json({ erro: 'O PIN novo precisa ter 4 numeros.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    const conf = await confirmarIdentidade(client, req.membro.id, { pin, telefone });
+    if (!conf.ok) return res.status(conf.status).json({ erro: conf.erro });
+
+    await client.query('BEGIN');
+    const contaId = req.conta.id;
+    await client.query(`DELETE FROM contas_pendentes WHERE conta_id = $1`, [contaId]);
+    await client.query(`DELETE FROM lancamentos WHERE conta_id = $1`, [contaId]);
+    await client.query(`DELETE FROM faturas_iniciais WHERE conta_id = $1`, [contaId]);
+    await client.query(`DELETE FROM cartoes WHERE conta_id = $1`, [contaId]);
+    await client.query(`DELETE FROM itens_conhecidos WHERE conta_id = $1`, [contaId]);
+    await client.query(`DELETE FROM metas WHERE conta_id = $1`, [contaId]);
+    await client.query(`DELETE FROM orcamentos WHERE conta_id = $1`, [contaId]);
+    if (pin_novo) {
+      await client.query(
+        `UPDATE membros SET pin_hash = $1, pin_tentativas = 0, pin_bloqueado_ate = NULL WHERE id = $2`,
+        [gerarHashPin(pin_novo), req.membro.id]
+      );
+    }
+    await client.query('COMMIT');
+    res.json({ status: 'ok' });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Erro ao zerar conta:', err);
+    res.status(500).json({ erro: 'Erro ao zerar. Nada foi apagado, tente de novo.' });
+  } finally {
+    client.release();
   }
 });
 
