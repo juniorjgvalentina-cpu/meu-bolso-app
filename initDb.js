@@ -176,6 +176,12 @@ async function initDb() {
       );
     `);
 
+    // PIN de 4 digitos (so pra quem se cadastrou depois que ele existe) -
+    // pedido apenas na hora de entrar num celular novo.
+    await client.query(`ALTER TABLE membros ADD COLUMN IF NOT EXISTS pin_hash VARCHAR(120);`);
+    await client.query(`ALTER TABLE membros ADD COLUMN IF NOT EXISTS pin_tentativas INTEGER NOT NULL DEFAULT 0;`);
+    await client.query(`ALTER TABLE membros ADD COLUMN IF NOT EXISTS pin_bloqueado_ate TIMESTAMP;`);
+
     // Valores das faturas que ja existiam antes da pessoa comecar a usar o
     // app (parcelas antigas no cartao). Uma linha por cartao + mes da fatura;
     // as compras novas lancadas no app somam em cima desses valores.

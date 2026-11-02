@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const { gerarToken } = require('../utils/token');
+const { conferirPin } = require('../utils/pin');
 const autenticar = require('../middleware/autenticar');
 
 // Confere se uma conta esta vencida na hora do login (alem do job diario,
@@ -68,7 +69,7 @@ router.post('/login', async (req, res) => {
 // Confirma pelo telefone cadastrado e gera um token NOVO - os dados antigos
 // continuam no servidor, nada e apagado.
 router.post('/recuperar', async (req, res) => {
-  const { telefone } = req.body;
+  const { telefone, pin } = req.body;
   if (!telefone || !telefone.trim()) {
     return res.status(400).json({ erro: 'Telefone e obrigatorio.' });
   }
@@ -78,7 +79,7 @@ router.post('/recuperar', async (req, res) => {
   const client = await pool.connect();
   try {
     const membroResult = await client.query(
-      `SELECT m.id, m.nome, m.telefone, m.papel, m.conta_id FROM membros m
+      `SELECT m.id, m.nome, m.telefone, m.papel, m.conta_id, m.pin_hash, m.pin_tentativas, m.pin_bloqueado_ate FROM membros m
        WHERE m.telefone = $1
        ORDER BY (SELECT COUNT(*) FROM lancamentos l WHERE l.conta_id = m.conta_id) DESC, m.id ASC
        LIMIT 1`,
@@ -90,6 +91,31 @@ router.post('/recuperar', async (req, res) => {
     }
 
     const membro = membroResult.rows[0];
+
+    // Quem criou PIN no cadastro precisa dele pra entrar num celular novo.
+    // 5 erros seguidos bloqueiam por 15 minutos.
+    if (membro.pin_hash) {
+      if (membro.pin_bloqueado_ate && new Date(membro.pin_bloqueado_ate) > new Date()) {
+        return res.status(429).json({ erro: 'Muitas tentativas erradas. Espere 15 minutos e tente de novo.', precisa_pin: true });
+      }
+      if (!pin) {
+        return res.status(401).json({ erro: 'Digite seu PIN de 4 números.', precisa_pin: true });
+      }
+      if (!conferirPin(pin, membro.pin_hash)) {
+        const tentativas = (membro.pin_tentativas || 0) + 1;
+        if (tentativas >= 5) {
+          await client.query(
+            `UPDATE membros SET pin_tentativas = 0, pin_bloqueado_ate = NOW() + INTERVAL '15 minutes' WHERE id = $1`,
+            [membro.id]
+          );
+          return res.status(429).json({ erro: 'PIN errado 5 vezes. Espere 15 minutos e tente de novo.', precisa_pin: true });
+        }
+        await client.query(`UPDATE membros SET pin_tentativas = $1 WHERE id = $2`, [tentativas, membro.id]);
+        return res.status(401).json({ erro: `PIN errado. Você ainda tem ${5 - tentativas} tentativa(s).`, precisa_pin: true });
+      }
+      await client.query(`UPDATE membros SET pin_tentativas = 0, pin_bloqueado_ate = NULL WHERE id = $1`, [membro.id]);
+    }
+
     const novoToken = gerarToken();
 
     await client.query(

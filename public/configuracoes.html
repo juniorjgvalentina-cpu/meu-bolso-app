@@ -333,7 +333,7 @@ body{
       <span class="icone">🚪</span>
       <div class="texto">
         <div class="titulo">Sair deste aparelho</div>
-        <div class="desc">Precisa do telefone pra entrar de novo</div>
+        <div class="desc">Precisa do telefone (e PIN) pra entrar de novo</div>
       </div>
       <span class="seta">›</span>
     </div>
@@ -774,7 +774,7 @@ async function excluirCadastro() {
 function solicitarSairAparelho() {
   abrirModal(
     'Sair deste aparelho',
-    'Você vai precisar do seu telefone pra entrar de novo. Seus dados continuam salvos com segurança. Deseja continuar?',
+    'Pra entrar de novo você vai precisar do seu telefone (e do PIN, se criou um no cadastro). Seus dados continuam salvos com segurança. Deseja continuar?',
     'Sair',
     sairAparelho
   );

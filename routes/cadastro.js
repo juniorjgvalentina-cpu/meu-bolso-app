@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const { gerarToken } = require('../utils/token');
+const { gerarHashPin, pinValido } = require('../utils/pin');
 
 const PLANOS = {
   individual: { valor: 12.99, limite: 1 },
@@ -15,13 +16,17 @@ const DIAS_TESTE = 30;
 // membro (dono). Retorna o token que fica salvo no aparelho da pessoa
 // pra ela nunca mais precisar de senha.
 router.post('/cadastro', async (req, res) => {
-  const { nome, telefone, plano } = req.body;
+  const { nome, telefone, plano, pin } = req.body;
 
   if (!nome || !nome.trim()) {
     return res.status(400).json({ erro: 'Nome e obrigatorio.' });
   }
   if (!telefone || !telefone.trim()) {
     return res.status(400).json({ erro: 'Telefone e obrigatorio.' });
+  }
+
+  if (!pinValido(pin)) {
+    return res.status(400).json({ erro: 'Crie um PIN de 4 numeros.' });
   }
 
   const telefoneLimpo = telefone.replace(/\D/g, '');
@@ -57,9 +62,9 @@ router.post('/cadastro', async (req, res) => {
     const token = gerarToken();
 
     const membroResult = await client.query(
-      `INSERT INTO membros (conta_id, nome, telefone, token_acesso, papel)
-       VALUES ($1, $2, $3, $4, 'dono') RETURNING id, nome, papel`,
-      [contaId, nome.trim(), telefoneLimpo, token]
+      `INSERT INTO membros (conta_id, nome, telefone, token_acesso, papel, pin_hash)
+       VALUES ($1, $2, $3, $4, 'dono', $5) RETURNING id, nome, papel`,
+      [contaId, nome.trim(), telefoneLimpo, token, gerarHashPin(pin)]
     );
 
     await client.query('COMMIT');
