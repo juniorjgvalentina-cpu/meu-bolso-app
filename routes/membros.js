@@ -56,6 +56,18 @@ router.post('/membros', autenticar, apenasDono, async (req, res) => {
       });
     }
 
+    const telefoneEmUso = await pool.query(
+      `SELECT conta_id FROM membros WHERE telefone = $1 LIMIT 1`,
+      [telefoneLimpo]
+    );
+    if (telefoneEmUso.rows.length > 0) {
+      return res.status(400).json({
+        erro: telefoneEmUso.rows[0].conta_id === req.conta.id
+          ? 'Esse telefone ja esta cadastrado nessa conta.'
+          : 'Esse telefone ja tem uma conta propria no Meu Bolso. A pessoa precisa excluir aquele cadastro antes (Configuracoes > Excluir cadastro) pra entrar na sua conta.'
+      });
+    }
+
     const novoToken = gerarToken();
 
     const result = await pool.query(
@@ -106,6 +118,13 @@ router.delete('/membros/:id', autenticar, apenasDono, async (req, res) => {
   }
 
   try {
+    // O historico dessa pessoa continua na conta (passa pro nome do dono) -
+    // senao os lancamentos dela sumiam junto e os totais da conta mudavam.
+    await pool.query(
+      `UPDATE lancamentos SET membro_id = $1
+       WHERE conta_id = $2 AND membro_id = (SELECT id FROM membros WHERE id = $3 AND conta_id = $2 AND papel != 'dono')`,
+      [req.membro.id, req.conta.id, req.params.id]
+    );
     const result = await pool.query(
       `DELETE FROM membros WHERE id = $1 AND conta_id = $2 AND papel != 'dono' RETURNING id`,
       [req.params.id, req.conta.id]
@@ -139,23 +158,38 @@ router.post('/membros/sair-conta-compartilhada', autenticar, async (req, res) =>
     }
 
     const membroAtualResult = await client.query(
-      `SELECT telefone FROM membros WHERE id = $1`,
+      `SELECT telefone, papel FROM membros WHERE id = $1`,
       [req.membro.id]
     );
     const telefoneAtual = membroAtualResult.rows[0] ? membroAtualResult.rows[0].telefone : '';
+    const eraDono = membroAtualResult.rows[0] && membroAtualResult.rows[0].papel === 'dono';
 
+    // Quem fica na conta compartilhada: se quem esta saindo era o dono, a
+    // pessoa mais antiga que fica vira a dona (a conta nunca fica sem dono).
+    const quemFicaResult = await client.query(
+      `SELECT id, papel FROM membros WHERE conta_id = $1 AND id != $2
+       ORDER BY (papel = 'dono') DESC, data_entrada ASC, id ASC LIMIT 1`,
+      [req.conta.id, req.membro.id]
+    );
+    const quemFica = quemFicaResult.rows[0];
+    if (eraDono) {
+      await client.query(
+        `UPDATE membros SET papel = 'dono', visao_completa = TRUE WHERE id = $1`,
+        [quemFica.id]
+      );
+    }
+
+    // O historico compartilhado continua salvo pra quem ficou (passa pro
+    // nome de quem fica como dono da conta).
     await client.query(
-      `UPDATE lancamentos SET membro_id = NULL WHERE membro_id = $1 AND conta_id = $2`,
-      [req.membro.id, req.conta.id]
-    ).catch(() => {
-      // Se a coluna nao aceitar NULL, o historico fica ligado ao membro
-      // removido - nao quebra nada, so nao aparece mais pra essa pessoa.
-    });
+      `UPDATE lancamentos SET membro_id = $1 WHERE membro_id = $2 AND conta_id = $3`,
+      [quemFica.id, req.membro.id, req.conta.id]
+    );
 
     await client.query(`DELETE FROM membros WHERE id = $1`, [req.membro.id]);
 
     const dataVencimento = new Date();
-    dataVencimento.setDate(dataVencimento.getDate() + 4);
+    dataVencimento.setDate(dataVencimento.getDate() + 30);
 
     const novaContaResult = await client.query(
       `INSERT INTO contas (plano, valor_plano, limite_membros, status_assinatura, data_vencimento)

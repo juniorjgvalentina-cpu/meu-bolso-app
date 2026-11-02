@@ -88,8 +88,9 @@ router.post('/cobranca/gerar', autenticar, apenasDono, async (req, res) => {
     const pendenteResult = await pool.query(
       `SELECT * FROM cobrancas
        WHERE conta_id = $1 AND status = 'pendente' AND data_criacao > NOW() - INTERVAL '25 minutes'
+         AND valor = $2
        ORDER BY data_criacao DESC LIMIT 1`,
-      [req.conta.id]
+      [req.conta.id, req.conta.valor_plano]
     );
     if (pendenteResult.rows.length > 0) {
       const c = pendenteResult.rows[0];

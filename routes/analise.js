@@ -51,7 +51,19 @@ async function totaisDoMes(contaId, membroId, apenasProprio, offsetMeses) {
     crossParams.push(membroId);
   }
   const crossResult = await pool.query(crossQuery, crossParams);
-  const totalCrossMes = Number(crossResult.rows[0].total);
+  let totalCrossMes = Number(crossResult.rows[0].total);
+
+  // Parcelas de antes do app pagas nesse mes (fatura do cartao) tambem
+  // sairam do bolso.
+  if (!apenasProprio) {
+    const iniciaisResult = await pool.query(
+      `SELECT COALESCE(SUM(valor), 0) AS total FROM faturas_iniciais
+       WHERE conta_id = $1 AND paga = TRUE
+         AND date_trunc('month', paga_em) = date_trunc('month', CURRENT_DATE + ($2 || ' months')::interval)`,
+      [contaId, offsetMeses]
+    );
+    totalCrossMes += Number(iniciaisResult.rows[0].total);
+  }
 
   totais.totalPago = totalPagoDoMes + totalCrossMes;
   totais.totalCrossMes = totalCrossMes;

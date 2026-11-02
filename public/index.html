@@ -2,11 +2,12 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#FFFFFF">
 <link rel="manifest" href="/manifest.json">
+<script src="/app.js"></script>
 <title>Meu Bolso</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -99,6 +100,11 @@ p.desc{ color:var(--ink-soft); font-size:13.5px; line-height:1.5; }
   width:100%; margin-top:2px; font-family:'Sora', sans-serif;
 }
 .btn-primary:disabled{ opacity:.55; }
+.ja-tenho{
+  text-align:center; font-size:13px; color:var(--ink-soft); padding:12px; border:1.5px solid var(--line, #E4DFD1);
+  border-radius:14px; background:#fff; font-family:'Sora', sans-serif;
+}
+.ja-tenho b{ color:var(--accent-dark, #C64F1E); }
 
 .loading-screen{
   position:fixed; inset:0; background:#FFFFFF; display:flex;
@@ -140,11 +146,27 @@ p.desc{ color:var(--ink-soft); font-size:13.5px; line-height:1.5; }
 
 <div id="loadingScreen" class="loading-screen">Carregando...</div>
 
+<div class="wrap" id="entrarForm" style="display:none;">
+  <div class="brand-mark">$</div>
+  <h1>Entrar na minha conta</h1>
+  <p class="desc">Trocou de celular ou saiu do app? Digite o telefone que você usou no cadastro e seus dados voltam do jeito que estavam.</p>
+
+  <div class="field">
+    <label>Telefone do cadastro</label>
+    <input type="tel" id="inputTelefoneEntrar" placeholder="(11) 98765-4321" autocomplete="tel">
+  </div>
+
+  <div class="erro-msg" id="erroMsgEntrar"></div>
+
+  <button class="btn-primary" id="btnEntrar" onclick="entrarComTelefone()">Entrar</button>
+  <div class="ja-tenho" onclick="mostrarEntrar(false)">Ainda não tenho conta · <b>Criar agora</b></div>
+</div>
+
 <div class="wrap" id="cadastroForm" style="display:none;">
   <div class="brand-mark">$</div>
   <h1>Vamos começar. Só precisa disso uma vez.</h1>
   <p class="desc">Depois do cadastro, o app abre direto — sem senha, sem login toda vez.</p>
-  <div class="trial-chip">4 dias grátis pra testar</div>
+  <div class="trial-chip">30 dias grátis pra testar</div>
 
   <div class="field">
     <label>Nome</label>
@@ -186,6 +208,8 @@ p.desc{ color:var(--ink-soft); font-size:13.5px; line-height:1.5; }
   <div class="erro-msg" id="erroMsg"></div>
 
   <button class="btn-primary" id="btnCriar">Criar minha conta</button>
+
+  <div class="ja-tenho" id="linkJaTenho" onclick="mostrarEntrar(true)">Já tenho conta · <b>Entrar com meu telefone</b></div>
 
   <div class="explicacao">
     <div class="titulo">📲 Deixa com cara de app</div>
@@ -313,6 +337,9 @@ document.getElementById('btnCriar').addEventListener('click', async () => {
     const data = await res.json();
 
     if (!res.ok) {
+      if (data.ja_cadastrado) {
+        document.getElementById('inputTelefoneEntrar').value = telefone;
+      }
       mostrarErro(data.erro || 'Erro ao criar cadastro. Tente novamente.');
       btn.disabled = false;
       btn.textContent = 'Criar minha conta';
@@ -328,6 +355,46 @@ document.getElementById('btnCriar').addEventListener('click', async () => {
     btn.textContent = 'Criar minha conta';
   }
 });
+
+function mostrarEntrar(entrar) {
+  document.getElementById('cadastroForm').style.display = entrar ? 'none' : 'flex';
+  document.getElementById('entrarForm').style.display = entrar ? 'flex' : 'none';
+  esconderErro();
+  document.getElementById('erroMsgEntrar').style.display = 'none';
+  window.scrollTo(0, 0);
+}
+
+async function entrarComTelefone() {
+  const el = document.getElementById('erroMsgEntrar');
+  el.style.display = 'none';
+  const telefone = document.getElementById('inputTelefoneEntrar').value.trim();
+  if (!telefone || telefone.replace(/\D/g, '').length < 10) {
+    el.textContent = 'Digite o telefone com DDD.';
+    el.style.display = 'block';
+    return;
+  }
+  const btn = document.getElementById('btnEntrar');
+  btn.disabled = true;
+  btn.textContent = 'Entrando...';
+  try {
+    const res = await fetch(`${API}/recuperar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ telefone })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.erro || 'Não foi possível entrar.');
+    localStorage.setItem('meubolso_token', data.token);
+    window.location.href = '/home.html';
+  } catch (e) {
+    el.textContent = e.message === 'Nenhum cadastro encontrado com esse telefone.'
+      ? 'Não achamos cadastro com esse telefone. Confira o número ou crie uma conta nova.'
+      : e.message;
+    el.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Entrar';
+  }
+}
 
 tentarLoginAutomatico();
 </script>

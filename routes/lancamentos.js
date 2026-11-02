@@ -5,6 +5,7 @@ const pool = require('../db');
 const autenticar = require('../middleware/autenticar');
 const { normalizarTexto } = require('../utils/normalizar');
 const { computarCicloFatura } = require('../utils/faturaCartao');
+const { sincronizarFaturasDeCartao } = require('../utils/sincronizarFaturas');
 
 const CATEGORIAS_VALIDAS = ['fixo', 'superfluo', 'diaadia', 'imprevisto'];
 const FORMAS_VALIDAS = ['dinheiro', 'debito', 'credito', 'pix'];
@@ -129,30 +130,19 @@ router.post('/lancamentos', autenticar, async (req, res) => {
       lancamentosCriados.push(result.rows[0]);
     }
 
+    await client.query('COMMIT');
+
+    // Garante a fatura aberta em A Pagar. So a fatura de AGORA aparece la -
+    // as parcelas dos proximos meses ficam em "Faturas futuras" e entram em
+    // A Pagar sozinhas quando a fatura anterior fechar.
     if (cartaoInfo) {
-      const referenciasUsadas = [...new Set(lancamentosCriados.map(l => l.fatura_referencia).filter(Boolean))];
-      for (const referencia of referenciasUsadas) {
-        const jaExiste = await client.query(
-          `SELECT 1 FROM contas_pendentes
-           WHERE conta_id = $1 AND cartao_id = $2 AND fatura_referencia = $3 AND resolvido = FALSE`,
-          [req.conta.id, cartaoIdFinal, referencia]
-        );
-        if (jaExiste.rows.length === 0) {
-          const ano = referencia.slice(0, 4);
-          const mes = referencia.slice(5, 7);
-          const ultimoDia = new Date(Number(ano), Number(mes), 0).getDate();
-          const diaFinal = Math.min(cartaoInfo.dia_vencimento, ultimoDia);
-          const dataVencimentoFatura = `${ano}-${mes}-${String(diaFinal).padStart(2, '0')}`;
-          await client.query(
-            `INSERT INTO contas_pendentes (conta_id, membro_id, tipo, nome, data_vencimento, recorrente, cartao_id, fatura_referencia)
-             VALUES ($1, $2, 'pagar', $3, $4, TRUE, $5, $6)`,
-            [req.conta.id, req.membro.id, `Fatura do cartão ${cartaoInfo.nome}`, dataVencimentoFatura, cartaoIdFinal, referencia]
-          );
-        }
+      try {
+        await sincronizarFaturasDeCartao(cartaoIdFinal);
+      } catch (erroSync) {
+        console.error('Erro ao sincronizar faturas do cartao:', erroSync);
       }
     }
 
-    await client.query('COMMIT');
     res.status(201).json({ lancamentos: lancamentosCriados });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -281,6 +271,14 @@ router.put('/lancamentos/:id', autenticar, async (req, res) => {
       [descricao.trim(), observacaoFinal, valorNum, categoriaFinal, formaFinal, cartaoIdFinal, faturaReferenciaFinal, req.params.id, req.conta.id]
     );
 
+    if (cartaoIdFinal) {
+      try {
+        await sincronizarFaturasDeCartao(cartaoIdFinal);
+      } catch (erroSync) {
+        console.error('Erro ao sincronizar faturas do cartao:', erroSync);
+      }
+    }
+
     res.json({ lancamento: result.rows[0] });
   } catch (err) {
     console.error('Erro ao editar lancamento:', err);
@@ -318,7 +316,29 @@ router.get('/lancamentos/fatura', autenticar, async (req, res) => {
     }
     query += ` ORDER BY l.data_lancamento DESC`;
     const result = await pool.query(query, params);
-    res.json({ itens: result.rows });
+
+    // Valores que ja existiam no cartao antes do app entram na fatura do mes
+    // deles, somando com as compras novas.
+    const iniciais = await pool.query(
+      `SELECT f.cartao_id, f.fatura_referencia, f.valor, c.nome AS cartao_nome
+       FROM faturas_iniciais f
+       JOIN cartoes c ON c.id = f.cartao_id
+       WHERE f.conta_id = $1 AND f.paga = FALSE`,
+      [req.conta.id]
+    );
+    const itensIniciais = iniciais.rows.map(f => ({
+      id: `inicial-${f.cartao_id}-${f.fatura_referencia}`,
+      saldo_inicial: true,
+      descricao: 'Parcelas de antes do app',
+      cartao_id: f.cartao_id,
+      cartao_nome: f.cartao_nome,
+      fatura_referencia: f.fatura_referencia,
+      valor: f.valor,
+      forma_pagamento: 'credito',
+      fatura_paga: false
+    }));
+
+    res.json({ itens: result.rows.concat(itensIniciais) });
   } catch (err) {
     console.error('Erro ao buscar fatura:', err);
     res.status(500).json({ erro: 'Erro ao buscar fatura.' });
@@ -341,7 +361,29 @@ router.get('/lancamentos/pagos-cross-mes', autenticar, async (req, res) => {
       params.push(req.membro.id);
     }
     const result = await pool.query(query, params);
-    res.json({ itens: result.rows });
+
+    // Fatura com parcelas de antes do app paga neste mes tambem saiu do bolso.
+    let itensIniciais = [];
+    if (req.membro.visao_completa) {
+      const iniciais = await pool.query(
+        `SELECT f.cartao_id, f.fatura_referencia, f.valor, c.nome AS cartao_nome
+         FROM faturas_iniciais f
+         JOIN cartoes c ON c.id = f.cartao_id
+         WHERE f.conta_id = $1 AND f.paga = TRUE
+           AND date_trunc('month', f.paga_em) = date_trunc('month', CURRENT_DATE)`,
+        [req.conta.id]
+      );
+      itensIniciais = iniciais.rows.map(f => ({
+        saldo_inicial: true,
+        descricao: 'Parcelas de antes do app',
+        cartao_id: f.cartao_id,
+        cartao_nome: f.cartao_nome,
+        fatura_referencia: f.fatura_referencia,
+        valor: f.valor
+      }));
+    }
+
+    res.json({ itens: result.rows.concat(itensIniciais) });
   } catch (err) {
     console.error('Erro ao buscar pagos cross-mes:', err);
     res.status(500).json({ erro: 'Erro ao buscar.' });
@@ -373,6 +415,15 @@ router.get('/lancamentos/saldo-total', autenticar, async (req, res) => {
         if (pago) saldo -= valor;
       }
     });
+
+    // Parcelas de antes do app que ja foram pagas tambem saem do saldo.
+    if (req.membro.visao_completa) {
+      const iniciaisPagas = await pool.query(
+        `SELECT COALESCE(SUM(valor), 0) AS total FROM faturas_iniciais WHERE conta_id = $1 AND paga = TRUE`,
+        [req.conta.id]
+      );
+      saldo -= Number(iniciaisPagas.rows[0].total);
+    }
 
     res.json({ saldo });
   } catch (err) {

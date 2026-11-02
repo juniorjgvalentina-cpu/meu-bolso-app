@@ -2,11 +2,12 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#FFFFFF">
 <link rel="manifest" href="/manifest.json">
+<script src="/app.js"></script>
 <title>Meu Bolso — Planilha</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
@@ -234,6 +235,12 @@ body{
 .pendencia-card.proxima-pagar{ background:#FCEEDD; border-color:var(--superfluo); }
 .pendencia-card.proxima-receber{ background:#E6F5EB; border-color:var(--entrada); }
 
+.btn-faturas-futuras{
+  border:1.5px solid var(--fixo); color:var(--fixo); background:#EEF3FE; border-radius:11px; padding:8px 6px; text-align:center;
+  font-family:'Sora', sans-serif; font-weight:700; font-size:11.5px; margin-bottom:8px;
+}
+.pendencia-card .ref-fatura{ font-size:10px; font-weight:700; color:var(--fixo); }
+.pendencia-card.vencida .ref-fatura{ color:#fff; }
 .resolver-form{ display:none; flex-direction:column; gap:7px; border-top:1.5px dashed var(--line); padding-top:9px; }
 .resolver-form.visivel{ display:flex; }
 .resolver-form input, .resolver-form select{
@@ -279,7 +286,7 @@ body{
 <body>
 
 <div class="topbar">
-  <div class="nav-btn" onclick="window.location.href='/home.html'">←</div>
+  <div class="nav-btn" onclick="MB.voltar('/home.html')">←</div>
   <h1>Planilha</h1>
   <div class="nav-btn" onclick="window.location.href='/analise.html'">📊</div>
   <div class="nav-btn" onclick="window.location.href='/relatorio.html'">🧾</div>
@@ -359,6 +366,7 @@ body{
     <div class="colunas">
       <div class="coluna">
         <div class="secao-titulo" style="margin-bottom:8px; color:var(--imprevisto);">A Pagar</div>
+        <div class="btn-faturas-futuras" id="btnFaturasFuturas" style="display:none;" onclick="abrirFaturasDoCartao(null)">💳 Faturas futuras</div>
         <div class="lista" id="listaPagar"></div>
       </div>
 
@@ -747,7 +755,19 @@ function mostrarToast(msg) {
   setTimeout(() => { el.style.display = 'none'; }, 2200);
 }
 
-function mostrarAba(nome) {
+// Abrir "A Pagar & Receber" vira um passo: o voltar (botao ←, gesto do
+// iPhone ou botao do Android) volta pra aba Lançamentos antes de sair da tela.
+function mostrarAba(nome, semHistorico) {
+  const atual = document.getElementById('abaPendencias').classList.contains('visivel') ? 'pendencias' : 'lancamentos';
+  if (nome === atual) return;
+  if (!semHistorico) {
+    if (nome === 'pendencias') {
+      MB.abrirCamada(() => mostrarAba('lancamentos', true), { aba: 'pendencias' });
+    } else if (MB.temCamadaAberta()) {
+      MB.fecharCamada();
+      return;
+    }
+  }
   document.getElementById('abaLancamentos').classList.toggle('visivel', nome === 'lancamentos');
   document.getElementById('abaPendencias').classList.toggle('visivel', nome === 'pendencias');
   document.getElementById('tabLancamentos').classList.toggle('active', nome === 'lancamentos');
@@ -1040,7 +1060,36 @@ function estadoPendencia(p) {
   return 'normal';
 }
 
+// Total da fatura DESSA pendencia (so o mes dela). Parcelas dos proximos
+// meses ficam em "Faturas futuras" e nao aparecem aqui.
+function totalDaFaturaPendencia(p) {
+  return faturaItensCache
+    .filter(item => item.cartao_id === p.cartao_id)
+    .filter(item => !p.fatura_referencia || !item.fatura_referencia || item.fatura_referencia === p.fatura_referencia)
+    .reduce((soma, item) => soma + Number(item.valor), 0);
+}
+
+const NOMES_MES_FATURA = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+function nomeMesFatura(ref) {
+  if (!ref) return '';
+  return NOMES_MES_FATURA[Number(ref.slice(5, 7)) - 1];
+}
+
+function abrirFaturasDoCartao(cartaoId, modo) {
+  MB.abrirFaturas(cartaoId, {
+    modo: modo || 'ver',
+    aoFechar: async (mudou) => {
+      if (mudou) {
+        await carregarFaturaItens();
+        await carregarPendencias();
+      }
+    }
+  });
+}
+
 function renderizarPendencias() {
+  const btnFuturas = document.getElementById('btnFaturasFuturas');
+  if (btnFuturas) btnFuturas.style.display = cartoesCache.length ? 'block' : 'none';
   const aPagar = pendenciasCache.filter(p => p.tipo === 'pagar');
   const aReceber = pendenciasCache.filter(p => p.tipo === 'receber');
 
@@ -1062,9 +1111,7 @@ function renderizarPendenciaCard(p) {
 
   let valorTexto;
   if (p.cartao_id) {
-    const totalFatura = faturaItensCache
-      .filter(item => item.cartao_id === p.cartao_id)
-      .reduce((soma, item) => soma + Number(item.valor), 0);
+    const totalFatura = totalDaFaturaPendencia(p);
     valorTexto = `${formatarMoeda(totalFatura)} até agora`;
   } else {
     valorTexto = p.valor ? formatarMoeda(p.valor) : 'Valor não informado';
@@ -1104,12 +1151,14 @@ function renderizarPendenciaCard(p) {
       <div class="linha-topo">
         <div class="nome">${escapeHtml(p.nome)}${badgeRecorrente}</div>
         <div class="data">${formatarDataVencimento(p.data_vencimento)}</div>
+        ${p.cartao_id && p.fatura_referencia ? `<div class="ref-fatura">fatura de ${nomeMesFatura(p.fatura_referencia)}</div>` : ''}
       </div>
       ${badgeEstado}
       <div class="valor">${valorTexto}</div>
       <div class="acoes">
         <button class="resolver" onclick="abrirResolverForm(${p.id})">${labelAcao}</button>
         <button onclick="alternarEditarPendencia(${p.id})">✎ Editar</button>
+        ${p.cartao_id ? `<button onclick="abrirFaturasDoCartao(${p.cartao_id})">📅 Faturas futuras</button>` : ''}
         <button class="excluir" onclick="solicitarExclusao(${p.id})">Excluir</button>
       </div>
       <div class="resolver-form" id="editarPendForm${p.id}">
@@ -1121,7 +1170,7 @@ function renderizarPendenciaCard(p) {
       </div>
       <div class="resolver-form" id="resolverForm${p.id}">
         ${p.cartao_id ? `
-          <div class="aviso-vencimento-item">Confirma que pagou a fatura? Isso marca como pago tudo que ainda estava pendente nesse cartão (${valorTexto}).</div>
+          <div class="aviso-vencimento-item">Confirma que pagou a fatura${p.fatura_referencia ? ` de ${nomeMesFatura(p.fatura_referencia)}` : ''} (${valorTexto})? As parcelas dos próximos meses continuam nas faturas delas.</div>
         ` : `
           <input type="text" id="resolverValor${p.id}" placeholder="Valor" inputmode="decimal" value="${p.valor || ''}">
           ${p.tipo === 'pagar' ? `
@@ -1258,10 +1307,8 @@ function solicitarConfirmacaoResolucao(id, tipo) {
   if (!p) return;
 
   if (p.cartao_id) {
-    const totalFatura = faturaItensCache
-      .filter(item => item.cartao_id === p.cartao_id)
-      .reduce((soma, item) => soma + Number(item.valor), 0);
-    const mensagem = `Confirma que pagou a fatura do cartão "${p.nome}", no valor de ${formatarMoeda(totalFatura)}? Isso vai marcar como pago tudo que estava pendente nesse cartão.`;
+    const totalFatura = totalDaFaturaPendencia(p);
+    const mensagem = `Confirma que pagou a fatura${p.fatura_referencia ? ` de ${nomeMesFatura(p.fatura_referencia)}` : ''} do cartão "${p.nome.replace('Fatura do cartão ', '')}", no valor de ${formatarMoeda(totalFatura)}? Esse valor sai do seu saldo. As parcelas dos próximos meses continuam nas faturas delas.`;
     abrirModal('Confirmar pagamento', mensagem, 'Paguei', 'var(--entrada)', () => confirmarResolucao(id, tipo, {}));
     return;
   }
@@ -1335,6 +1382,17 @@ async function confirmarResolucao(id, tipo, body) {
 function solicitarExclusao(id) {
   const p = pendenciasCache.find(x => x.id === id);
   if (!p) return;
+
+  if (p.cartao_id) {
+    abrirModal(
+      'Fatura do cartão',
+      'A fatura do cartão volta sozinha enquanto o cartão existir. Pra parar de ver essa fatura, exclua o cartão em Configurações › Meus cartões. Quer ir pra lá agora?',
+      'Ir pra Meus cartões',
+      'var(--ink)',
+      () => { window.location.href = '/configuracoes.html#cartoes'; }
+    );
+    return;
+  }
 
   const mensagem = p.recorrente
     ? `"${p.nome}" é um cadastro recorrente (repete todo mês). Ao excluir, esse cadastro será removido definitivamente e não será mais gerado nos próximos meses. Esta ação não pode ser desfeita.`
@@ -1458,6 +1516,8 @@ async function salvarNovoCartaoComoPendencia() {
     mostrarToast('Cartão cadastrado ✓');
     await carregarPendencias();
     await carregarCartoesPlanilha();
+    renderizarPendencias();
+    abrirFaturasDoCartao(data.cartao.id, 'cadastro');
   } catch (e) {
     mostrarErro(e.message);
   }
@@ -1672,7 +1732,13 @@ async function carregarCartoesPlanilha() {
     console.error('Erro ao carregar cartões:', e);
   }
 }
-carregarCartoesPlanilha();
+carregarCartoesPlanilha().then(() => renderizarPendencias());
+
+// Voltou pra essa tela pelo historico estando na aba A Pagar.
+if (history.state && history.state.aba === 'pendencias') {
+  mostrarAba('pendencias', true);
+  MB.adotarCamada(() => mostrarAba('lancamentos', true));
+}
 
 async function carregarFaturaItens() {
   try {

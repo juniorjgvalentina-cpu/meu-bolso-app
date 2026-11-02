@@ -2,11 +2,12 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#FFFFFF">
 <link rel="manifest" href="/manifest.json">
+<script src="/app.js"></script>
 <title>Meu Bolso — Configurações</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -148,6 +149,25 @@ body{
 }
 .form-novo-item .btn-salvar-item:disabled{ opacity:.5; }
 
+.cartao-item{ border:1.5px solid var(--line); border-radius:13px; padding:11px 12px; margin-bottom:8px; display:flex; flex-direction:column; gap:8px; }
+.cartao-item .topo{ display:flex; align-items:center; gap:8px; }
+.cartao-item .nome{ flex:1; min-width:0; font-family:'Sora', sans-serif; font-weight:700; font-size:13.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cartao-item .dias{ font-size:11px; color:var(--ink-soft); }
+.cartao-item .botoes{ display:flex; gap:6px; flex-wrap:wrap; }
+.cartao-item .botoes button{
+  flex:1; min-width:90px; padding:8px 6px; border-radius:9px; border:1.5px solid var(--ink); background:var(--card);
+  font-family:'Sora', sans-serif; font-weight:700; font-size:11.5px; color:var(--ink-soft);
+}
+.cartao-item .botoes button.faturas{ border-color:var(--fixo); color:var(--fixo); background:#EEF3FE; }
+.cartao-item .botoes button.excluir{ color:var(--erro); }
+.cartao-item .editar{ display:none; flex-direction:column; gap:8px; }
+.cartao-item .editar.visivel{ display:flex; }
+.cartao-item .editar input{
+  border:1.5px solid var(--ink); border-radius:11px; padding:10px 12px; font-size:13.5px;
+  font-family:'Sora', sans-serif; color:var(--ink); background:var(--card);
+}
+.cartao-item .editar button{ background:var(--ink); color:#fff; border:none; border-radius:11px; padding:10px; font-family:'Sora', sans-serif; font-weight:700; font-size:12.5px; }
+
 .erro-msg{
   background:#FBEAEA; color:var(--erro); font-size:12.5px; font-weight:600;
   padding:10px 14px; border-radius:10px; display:none;
@@ -180,7 +200,7 @@ body{
 <body>
 
 <div class="topbar">
-  <div class="nav-btn" onclick="window.location.href='/planilha.html'">←</div>
+  <div class="nav-btn" onclick="MB.voltar('/planilha.html')">←</div>
   <h1>Configurações</h1>
   <div class="nav-btn" onclick="location.reload()">🔄</div>
 </div>
@@ -214,6 +234,19 @@ body{
       <div class="aviso-telefone">É esse telefone que você vai usar se precisar recuperar o acesso em outro aparelho.</div>
       <button id="btnSalvarPerfil" onclick="salvarPerfil()">Salvar</button>
     </div>
+  </div>
+
+  <div class="secao" id="cartoes">
+    <div class="secao-titulo">Meus cartões</div>
+    <div class="btn-novo-item" onclick="alternarFormNovoCartao()">+ Novo cartão</div>
+    <div class="form-novo-item" id="formNovoCartao">
+      <input type="text" id="novoCartaoNome" placeholder="Nome do cartão (ex: Nubank)">
+      <input type="text" id="novoCartaoVence" placeholder="Dia que a fatura VENCE (ex: 9)" inputmode="numeric" maxlength="2">
+      <input type="text" id="novoCartaoFecha" placeholder="Dia que a fatura FECHA (ex: 2)" inputmode="numeric" maxlength="2">
+      <div class="aviso-vencimento-item">Compra feita depois do dia que fecha já entra na fatura do mês seguinte. Depois de salvar, você coloca as parcelas que o cartão já tinha antes do app.</div>
+      <button class="btn-salvar-item" id="btnSalvarCartao" onclick="salvarNovoCartao()">Salvar cartão</button>
+    </div>
+    <div id="cartoesLista"><div class="vazio">Carregando...</div></div>
   </div>
 
   <div class="secao">
@@ -267,13 +300,6 @@ body{
         <div class="desc">Deixa o app com cara de aplicativo de verdade</div>
       </div>
       <span class="seta">›</span>
-    </div>
-    <div class="acao-item em-breve">
-      <span class="icone">📤</span>
-      <div class="texto">
-        <div class="titulo">Importar dados</div>
-        <div class="desc">Restaurar em outro aparelho</div>
-      </div>
     </div>
   </div>
 
@@ -352,6 +378,7 @@ function mostrarErro(msg) {
   const el = document.getElementById('erroMsg');
   el.textContent = msg;
   el.style.display = 'block';
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   setTimeout(() => { el.style.display = 'none'; }, 4000);
 }
 
@@ -764,8 +791,151 @@ function escapeHtml(texto) {
   return div.innerHTML;
 }
 
+// ===== Meus cartões =====
+let cartoesConfig = [];
+
+function alternarFormNovoCartao() {
+  const form = document.getElementById('formNovoCartao');
+  form.classList.toggle('visivel');
+  if (form.classList.contains('visivel')) {
+    ['novoCartaoNome', 'novoCartaoVence', 'novoCartaoFecha'].forEach(id => { document.getElementById(id).value = ''; });
+  }
+}
+
+async function carregarCartoesConfig() {
+  try {
+    const res = await fetch(`${API}/cartoes`, { headers: { 'x-token': token } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.erro || 'Erro ao buscar cartões.');
+    cartoesConfig = data.cartoes || [];
+    renderizarCartoesConfig();
+  } catch (e) {
+    document.getElementById('cartoesLista').innerHTML = '<div class="vazio">Não foi possível carregar os cartões.</div>';
+  }
+}
+
+function renderizarCartoesConfig() {
+  const lista = document.getElementById('cartoesLista');
+  if (!cartoesConfig.length) {
+    lista.innerHTML = '<div class="vazio">Nenhum cartão cadastrado ainda.</div>';
+    return;
+  }
+  lista.innerHTML = cartoesConfig.map(c => `
+    <div class="cartao-item">
+      <div class="topo">
+        <div class="nome">💳 ${escapeHtml(c.nome)}</div>
+        <div class="dias">fecha dia ${c.dia_fechamento} · vence dia ${c.dia_vencimento}</div>
+      </div>
+      <div class="botoes">
+        <button class="faturas" onclick="MB.abrirFaturas(${c.id}, { modo: 'ver' })">📅 Faturas futuras</button>
+        <button onclick="alternarEditarCartao(${c.id})">✎ Editar</button>
+        <button class="excluir" onclick="solicitarExcluirCartao(${c.id})">🗑 Excluir</button>
+      </div>
+      <div class="editar" id="editarCartao${c.id}">
+        <input type="text" id="editCartaoNome${c.id}" value="${escapeParaAtributo(c.nome)}" placeholder="Nome do cartão">
+        <input type="text" id="editCartaoVence${c.id}" value="${c.dia_vencimento}" placeholder="Dia que VENCE" inputmode="numeric" maxlength="2">
+        <input type="text" id="editCartaoFecha${c.id}" value="${c.dia_fechamento}" placeholder="Dia que FECHA" inputmode="numeric" maxlength="2">
+        <button onclick="salvarEdicaoCartao(${c.id})">Salvar alteração</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function lerDia(id) {
+  const n = parseInt(document.getElementById(id).value, 10);
+  return n >= 1 && n <= 31 ? n : null;
+}
+
+async function salvarNovoCartao() {
+  const nome = document.getElementById('novoCartaoNome').value.trim();
+  const vence = lerDia('novoCartaoVence');
+  const fecha = lerDia('novoCartaoFecha');
+  if (!nome) { mostrarErro('Digite o nome do cartão.'); return; }
+  if (!vence) { mostrarErro('Digite o dia que a fatura vence (1 a 31).'); return; }
+  if (!fecha) { mostrarErro('Digite o dia que a fatura fecha (1 a 31).'); return; }
+
+  const btn = document.getElementById('btnSalvarCartao');
+  btn.disabled = true;
+  try {
+    const res = await fetch(`${API}/cartoes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-token': token },
+      body: JSON.stringify({ nome, dia_vencimento: vence, dia_fechamento: fecha })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.erro || 'Erro ao salvar cartão.');
+    document.getElementById('formNovoCartao').classList.remove('visivel');
+    mostrarToast('Cartão cadastrado ✓');
+    await carregarCartoesConfig();
+    MB.abrirFaturas(data.cartao.id, { modo: 'cadastro' });
+  } catch (e) {
+    mostrarErro(e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function alternarEditarCartao(id) {
+  document.getElementById(`editarCartao${id}`).classList.toggle('visivel');
+}
+
+function salvarEdicaoCartao(id) {
+  const nome = document.getElementById(`editCartaoNome${id}`).value.trim();
+  const vence = lerDia(`editCartaoVence${id}`);
+  const fecha = lerDia(`editCartaoFecha${id}`);
+  if (!nome) { mostrarErro('Digite o nome do cartão.'); return; }
+  if (!vence) { mostrarErro('Dia que vence inválido (1 a 31).'); return; }
+  if (!fecha) { mostrarErro('Dia que fecha inválido (1 a 31).'); return; }
+  abrirModal(
+    'Salvar alteração',
+    `Confirma o cartão "${nome}" fechando dia ${fecha} e vencendo dia ${vence}? As faturas em aberto passam a vencer no dia novo.`,
+    'Salvar',
+    async () => {
+      try {
+        const res = await fetch(`${API}/cartoes/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'x-token': token },
+          body: JSON.stringify({ nome, dia_vencimento: vence, dia_fechamento: fecha })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.erro || 'Erro ao salvar.');
+        mostrarToast('Cartão atualizado ✓');
+        await carregarCartoesConfig();
+      } catch (e) {
+        mostrarErro(e.message);
+      }
+    }
+  );
+}
+
+function solicitarExcluirCartao(id) {
+  const c = cartoesConfig.find(x => x.id === id);
+  if (!c) return;
+  abrirModal(
+    'Excluir cartão',
+    `Excluir o cartão "${c.nome}"? As compras já pagas continuam no seu histórico. Não dá pra desfazer.`,
+    'Excluir',
+    async () => {
+      try {
+        const res = await fetch(`${API}/cartoes/${id}`, { method: 'DELETE', headers: { 'x-token': token } });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.erro || 'Erro ao excluir.');
+        mostrarToast('Cartão excluído.');
+        await carregarCartoesConfig();
+      } catch (e) {
+        mostrarErro(e.message);
+      }
+    }
+  );
+}
+
 carregarPerfil();
 carregarDicionario();
+carregarCartoesConfig().then(() => {
+  if (location.hash === '#cartoes') {
+    document.getElementById('cartoes').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+});
 </script>
 </body>
 </html>

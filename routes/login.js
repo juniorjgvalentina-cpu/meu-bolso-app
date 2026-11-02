@@ -78,7 +78,10 @@ router.post('/recuperar', async (req, res) => {
   const client = await pool.connect();
   try {
     const membroResult = await client.query(
-      `SELECT id, nome, telefone, papel, conta_id FROM membros WHERE telefone = $1`,
+      `SELECT m.id, m.nome, m.telefone, m.papel, m.conta_id FROM membros m
+       WHERE m.telefone = $1
+       ORDER BY (SELECT COUNT(*) FROM lancamentos l WHERE l.conta_id = m.conta_id) DESC, m.id ASC
+       LIMIT 1`,
       [telefoneLimpo]
     );
 
@@ -137,6 +140,13 @@ router.put('/perfil', autenticar, async (req, res) => {
     const telefoneLimpo = telefone.replace(/\D/g, '');
     if (telefoneLimpo.length < 10) {
       return res.status(400).json({ erro: 'Telefone invalido.' });
+    }
+    const emUso = await pool.query(
+      `SELECT 1 FROM membros WHERE telefone = $1 AND id != $2 LIMIT 1`,
+      [telefoneLimpo, req.membro.id]
+    );
+    if (emUso.rows.length > 0) {
+      return res.status(400).json({ erro: 'Esse telefone ja esta em uso em outro cadastro.' });
     }
     campos.push(`telefone = $${indice}`);
     valores.push(telefoneLimpo);

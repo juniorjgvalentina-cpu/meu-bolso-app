@@ -22,7 +22,7 @@ async function autenticar(req, res, next) {
     const membro = membroResult.rows[0];
 
     const contaResult = await pool.query(
-      `SELECT id, plano, valor_plano, limite_membros, status_assinatura, data_vencimento
+      `SELECT id, plano, periodicidade, valor_plano, limite_membros, status_assinatura, data_vencimento
        FROM contas WHERE id = $1`,
       [membro.conta_id]
     );

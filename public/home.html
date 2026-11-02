@@ -2,11 +2,12 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#FFFFFF">
 <link rel="manifest" href="/manifest.json">
+<script src="/app.js"></script>
 <title>Meu Bolso</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -156,6 +157,7 @@ body{
   padding:9px 12px; border-radius:10px; border:1.5px solid var(--ink); font-family:'Sora', sans-serif; font-weight:700; font-size:12px; color:var(--ink-soft); background:var(--card);
 }
 .cartao-chip.active{ background:var(--fixo); border-color:var(--fixo); color:#fff; }
+.links-cartao{ display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; }
 .link-add-cartao{ font-size:11.5px; font-weight:700; color:var(--accent-dark); align-self:flex-start; }
 
 .entrada-toggle{
@@ -480,14 +482,14 @@ function renderizarCartaoBox() {
   if (cartoesCache.length === 1) {
     box.innerHTML = `
       <div class="cartao-selecionado">💳 ${escapeHtml(cartoesCache[0].nome)}</div>
-      <div class="link-add-cartao" onclick="mostrarFormNovoCartao()">+ Adicionar outro cartão</div>
+      <div class="links-cartao"><span class="link-add-cartao" onclick="mostrarFormNovoCartao()">+ Adicionar outro cartão</span><span class="link-add-cartao" onclick="MB.abrirFaturas(cartaoSelecionadoId, { modo: 'ver' })">📅 Faturas futuras</span></div>
     `;
   } else {
     box.innerHTML = `
       <div class="cartao-chips">
         ${cartoesCache.map(c => `<div class="cartao-chip ${cartaoSelecionadoId === c.id ? 'active' : ''}" onclick="selecionarCartao(${c.id})">💳 ${escapeHtml(c.nome)}</div>`).join('')}
       </div>
-      <div class="link-add-cartao" onclick="mostrarFormNovoCartao()">+ Adicionar outro cartão</div>
+      <div class="links-cartao"><span class="link-add-cartao" onclick="mostrarFormNovoCartao()">+ Adicionar outro cartão</span><span class="link-add-cartao" onclick="MB.abrirFaturas(cartaoSelecionadoId, { modo: 'ver' })">📅 Faturas futuras</span></div>
     `;
   }
 }
@@ -541,6 +543,8 @@ async function salvarNovoCartao() {
     cartaoSelecionadoId = data.cartao.id;
     renderizarCartaoBox();
     mostrarToast('Cartão cadastrado ✓');
+    // Pergunta logo as parcelas que o cartao ja tinha antes do app.
+    MB.abrirFaturas(data.cartao.id, { modo: 'cadastro' });
   } catch (e) {
     mostrarErro(e.message);
   }

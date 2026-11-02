@@ -9,7 +9,7 @@ const PLANOS = {
   familia: { valor: 17.99, limite: 6 }
 };
 
-const DIAS_TESTE = 4;
+const DIAS_TESTE = 30;
 
 // Cadastro inicial: cria a conta (individual/casal/familia) e o primeiro
 // membro (dono). Retorna o token que fica salvo no aparelho da pessoa
@@ -31,6 +31,14 @@ router.post('/cadastro', async (req, res) => {
 
   const planoEscolhido = PLANOS[plano] ? plano : 'individual';
   const config = PLANOS[planoEscolhido];
+
+  // O telefone e o que a pessoa usa pra entrar de novo em outro aparelho -
+  // nao pode existir em duas contas (antes criava uma conta nova e "sumia"
+  // tudo que a pessoa ja tinha lancado).
+  const jaExiste = await pool.query(`SELECT 1 FROM membros WHERE telefone = $1 LIMIT 1`, [telefoneLimpo]);
+  if (jaExiste.rows.length > 0) {
+    return res.status(409).json({ erro: 'Esse telefone já tem cadastro. Toque em "Já tenho conta" pra entrar.', ja_cadastrado: true });
+  }
 
   const client = await pool.connect();
   try {

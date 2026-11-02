@@ -3,7 +3,8 @@ const router = express.Router();
 const { randomUUID } = require('crypto');
 const pool = require('../db');
 const autenticar = require('../middleware/autenticar');
-const { proximoCicloFatura } = require('../utils/faturaCartao');
+const { computarCicloFatura } = require('../utils/faturaCartao');
+const { sincronizarFaturasDeCartao } = require('../utils/sincronizarFaturas');
 
 const TIPOS_VALIDOS = ['pagar', 'receber'];
 const FORMAS_VALIDAS = ['dinheiro', 'debito', 'credito', 'pix'];
@@ -100,61 +101,67 @@ router.post('/pendencias/:id/resolver', autenticar, async (req, res) => {
     const pendencia = pendResult.rows[0];
 
     if (pendencia.cartao_id) {
-      const cartaoResult = await client.query(
-        `SELECT dia_vencimento FROM cartoes WHERE id = $1`,
-        [pendencia.cartao_id]
-      );
-      const diaVencimentoCartao = cartaoResult.rows[0] ? cartaoResult.rows[0].dia_vencimento : 1;
-
       let marcados;
+      let iniciaisMarcadas;
       if (pendencia.fatura_referencia) {
-        marcados = await client.query(
-          `UPDATE lancamentos SET fatura_paga = TRUE, fatura_paga_em = NOW()
-           WHERE conta_id = $1 AND cartao_id = $2 AND fatura_paga = FALSE AND fatura_referencia = $3
-           RETURNING id, valor`,
-          [req.conta.id, pendencia.cartao_id, pendencia.fatura_referencia]
-        );
-      } else {
+        // Paga so ESSA fatura (e compras antigas sem mes definido) - as
+        // parcelas dos proximos meses continuam nas faturas delas.
         marcados = await client.query(
           `UPDATE lancamentos SET fatura_paga = TRUE, fatura_paga_em = NOW()
            WHERE conta_id = $1 AND cartao_id = $2 AND fatura_paga = FALSE
+             AND (fatura_referencia = $3 OR fatura_referencia IS NULL)
            RETURNING id, valor`,
-          [req.conta.id, pendencia.cartao_id]
+          [req.conta.id, pendencia.cartao_id, pendencia.fatura_referencia]
+        );
+        iniciaisMarcadas = await client.query(
+          `UPDATE faturas_iniciais SET paga = TRUE, paga_em = NOW()
+           WHERE conta_id = $1 AND cartao_id = $2 AND paga = FALSE AND fatura_referencia = $3
+           RETURNING valor`,
+          [req.conta.id, pendencia.cartao_id, pendencia.fatura_referencia]
+        );
+      } else {
+        // Pendencia antiga, de antes de existir o mes da fatura: mantem o
+        // comportamento antigo (paga tudo que estiver em aberto ate agora).
+        const cartaoResult = await client.query(
+          `SELECT dia_fechamento, dia_vencimento FROM cartoes WHERE id = $1`,
+          [pendencia.cartao_id]
+        );
+        const c = cartaoResult.rows[0] || { dia_fechamento: 1, dia_vencimento: 1 };
+        const atual = computarCicloFatura(new Date(), c.dia_fechamento || 1, c.dia_vencimento).referencia;
+        marcados = await client.query(
+          `UPDATE lancamentos SET fatura_paga = TRUE, fatura_paga_em = NOW()
+           WHERE conta_id = $1 AND cartao_id = $2 AND fatura_paga = FALSE
+             AND (fatura_referencia IS NULL OR fatura_referencia <= $3)
+           RETURNING id, valor`,
+          [req.conta.id, pendencia.cartao_id, atual]
+        );
+        iniciaisMarcadas = await client.query(
+          `UPDATE faturas_iniciais SET paga = TRUE, paga_em = NOW()
+           WHERE conta_id = $1 AND cartao_id = $2 AND paga = FALSE AND fatura_referencia <= $3
+           RETURNING valor`,
+          [req.conta.id, pendencia.cartao_id, atual]
         );
       }
-      const valorTotalFatura = marcados.rows.reduce((soma, l) => soma + Number(l.valor), 0);
+
+      const valorTotalFatura = Math.round((
+        marcados.rows.reduce((soma, l) => soma + Number(l.valor), 0) +
+        iniciaisMarcadas.rows.reduce((soma, f) => soma + Number(f.valor), 0)
+      ) * 100) / 100;
 
       await client.query(
         `UPDATE contas_pendentes SET resolvido = TRUE, data_resolucao = NOW(), valor = $1 WHERE id = $2`,
         [valorTotalFatura, pendencia.id]
       );
 
-      if (pendencia.recorrente) {
-        const jaExisteProxima = await client.query(
-          `SELECT 1 FROM contas_pendentes
-           WHERE conta_id = $1 AND cartao_id = $2 AND recorrente = TRUE
-             AND data_vencimento > $3`,
-          [req.conta.id, pendencia.cartao_id, pendencia.data_vencimento]
-        );
-        if (jaExisteProxima.rows.length === 0) {
-          let proximaData, proximaReferencia;
-          if (pendencia.fatura_referencia) {
-            const proximo = proximoCicloFatura(pendencia.fatura_referencia, diaVencimentoCartao);
-            proximaData = proximo.dataVencimento;
-            proximaReferencia = proximo.referencia;
-          } else {
-            proximaData = somarMeses(new Date(pendencia.data_vencimento), 1).toISOString().slice(0, 10);
-            proximaReferencia = null;
-          }
-          await client.query(
-            `INSERT INTO contas_pendentes (conta_id, membro_id, tipo, nome, data_vencimento, recorrente, cartao_id, fatura_referencia)
-             VALUES ($1, $2, $3, $4, $5, TRUE, $6, $7)`,
-            [req.conta.id, req.membro.id, pendencia.tipo, pendencia.nome, proximaData, pendencia.cartao_id, proximaReferencia]
-          );
-        }
+      await client.query('COMMIT');
+
+      // A proxima fatura entra em A Pagar sozinha quando for a hora.
+      try {
+        await sincronizarFaturasDeCartao(pendencia.cartao_id);
+      } catch (erroSync) {
+        console.error('Erro ao sincronizar faturas do cartao:', erroSync);
       }
 
-      await client.query('COMMIT');
       return res.json({ status: 'ok', fatura: true, quantidade: marcados.rows.length, valor: valorTotalFatura });
     }
 
@@ -170,6 +177,7 @@ router.post('/pendencias/:id/resolver', autenticar, async (req, res) => {
     let formaFinal = null;
     let totalParcelas = 1;
     let cartaoIdFinal = null;
+    let cartaoInfo = null;
 
     if (tipoMovimento === 'saida') {
       const CATEGORIAS_VALIDAS = ['fixo', 'superfluo', 'diaadia', 'imprevisto'];
@@ -194,7 +202,7 @@ router.post('/pendencias/:id/resolver', autenticar, async (req, res) => {
           return res.status(400).json({ erro: 'Escolha o cartao usado nessa compra.' });
         }
         const cartaoResult = await client.query(
-          `SELECT id FROM cartoes WHERE id = $1 AND conta_id = $2`,
+          `SELECT id, dia_fechamento, dia_vencimento FROM cartoes WHERE id = $1 AND conta_id = $2`,
           [cartaoIdNum, req.conta.id]
         );
         if (cartaoResult.rows.length === 0) {
@@ -202,6 +210,7 @@ router.post('/pendencias/:id/resolver', autenticar, async (req, res) => {
           return res.status(400).json({ erro: 'Cartao invalido.' });
         }
         cartaoIdFinal = cartaoIdNum;
+        cartaoInfo = cartaoResult.rows[0];
       }
     }
 
@@ -216,11 +225,15 @@ router.post('/pendencias/:id/resolver', autenticar, async (req, res) => {
     for (let i = 0; i < totalParcelas; i++) {
       const dataLancamento = i === 0 ? dataBase : somarMeses(dataBase, i);
       const valorDaParcela = (i === totalParcelas - 1 ? valorCentavosUltimaParcela : valorCentavosParcela) / 100;
+      // Pago no cartao: cada parcela entra na fatura do mes certo.
+      const faturaReferencia = cartaoInfo
+        ? computarCicloFatura(dataLancamento, cartaoInfo.dia_fechamento || 1, cartaoInfo.dia_vencimento).referencia
+        : null;
       const result = await client.query(
         `INSERT INTO lancamentos
           (conta_id, membro_id, descricao, valor, tipo_movimento, categoria,
-           forma_pagamento, cartao_id, parcela_atual, total_parcelas, grupo_parcela_id, data_lancamento)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+           forma_pagamento, cartao_id, parcela_atual, total_parcelas, grupo_parcela_id, data_lancamento, fatura_referencia)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          RETURNING *`,
         [
           req.conta.id, req.membro.id, pendencia.nome, valorDaParcela, tipoMovimento,
@@ -228,7 +241,8 @@ router.post('/pendencias/:id/resolver', autenticar, async (req, res) => {
           totalParcelas > 1 ? i + 1 : null,
           totalParcelas > 1 ? totalParcelas : null,
           grupoParcelaId,
-          dataLancamento
+          dataLancamento,
+          faturaReferencia
         ]
       );
       lancamentosCriados.push(result.rows[0]);
@@ -264,6 +278,15 @@ router.post('/pendencias/:id/resolver', autenticar, async (req, res) => {
     }
 
     await client.query('COMMIT');
+
+    if (cartaoIdFinal) {
+      try {
+        await sincronizarFaturasDeCartao(cartaoIdFinal);
+      } catch (erroSync) {
+        console.error('Erro ao sincronizar faturas do cartao:', erroSync);
+      }
+    }
+
     res.json({ status: 'ok', lancamentos: lancamentosCriados });
   } catch (err) {
     await client.query('ROLLBACK');

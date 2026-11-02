@@ -2,11 +2,12 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#FFFFFF">
 <link rel="manifest" href="/manifest.json">
+<script src="/app.js"></script>
 <title>Meu Bolso — Análise</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -169,7 +170,7 @@ body{
 <body>
 
 <div class="topbar">
-  <div class="nav-btn" onclick="window.location.href='/planilha.html'">←</div>
+  <div class="nav-btn" onclick="MB.voltar('/planilha.html')">←</div>
   <h1>Análise</h1>
   <div class="nav-btn" onclick="location.reload()">🔄</div>
 </div>
@@ -370,10 +371,13 @@ function mostrarDetalhesCategoria(categoria) {
 
   document.getElementById('detalheTotal').textContent = `Total: ${formatarMoeda(total)}`;
   document.getElementById('detalheOverlay').classList.add('visivel');
+  MB.abrirCamada(() => document.getElementById('detalheOverlay').classList.remove('visivel'));
 }
 
+// Fechar o detalhe = voltar um passo (o mesmo que o gesto/botao voltar).
 function fecharDetalhes() {
-  document.getElementById('detalheOverlay').classList.remove('visivel');
+  if (MB.temCamadaAberta()) MB.fecharCamada();
+  else document.getElementById('detalheOverlay').classList.remove('visivel');
 }
 
 function renderizarAneis(mesAtual) {

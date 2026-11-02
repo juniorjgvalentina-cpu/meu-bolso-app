@@ -176,6 +176,71 @@ async function initDb() {
       );
     `);
 
+    // Valores das faturas que ja existiam antes da pessoa comecar a usar o
+    // app (parcelas antigas no cartao). Uma linha por cartao + mes da fatura;
+    // as compras novas lancadas no app somam em cima desses valores.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS faturas_iniciais (
+        id SERIAL PRIMARY KEY,
+        conta_id INTEGER NOT NULL REFERENCES contas(id) ON DELETE CASCADE,
+        cartao_id INTEGER NOT NULL REFERENCES cartoes(id) ON DELETE CASCADE,
+        fatura_referencia VARCHAR(7) NOT NULL,
+        valor NUMERIC(12,2) NOT NULL,
+        paga BOOLEAN NOT NULL DEFAULT FALSE,
+        paga_em TIMESTAMP,
+        UNIQUE (cartao_id, fatura_referencia)
+      );
+    `);
+
+    // Controle de ajustes que so podem rodar UMA vez no banco.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS migracoes (
+        nome VARCHAR(80) PRIMARY KEY,
+        aplicada_em TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    async function migrarUmaVez(nome, comandos) {
+      const ja = await client.query(`SELECT 1 FROM migracoes WHERE nome = $1`, [nome]);
+      if (ja.rows.length > 0) return;
+      for (const sql of comandos) {
+        await client.query(sql);
+      }
+      await client.query(`INSERT INTO migracoes (nome) VALUES ($1)`, [nome]);
+      console.log(`initDb: migracao "${nome}" aplicada.`);
+    }
+
+    // O banco gravava as datas/horas em UTC. A partir de agora tudo e gravado
+    // no horario de Brasilia - converte as datas antigas uma unica vez pra
+    // nada ficar 3 horas adiantado.
+    const paraBrasilia = (tabela, coluna) =>
+      `UPDATE ${tabela} SET ${coluna} = (${coluna} AT TIME ZONE 'UTC') AT TIME ZONE 'America/Sao_Paulo' WHERE ${coluna} IS NOT NULL`;
+    await migrarUmaVez('2026-11-fuso-brasilia', [
+      paraBrasilia('contas', 'data_cadastro'),
+      paraBrasilia('contas', 'data_vencimento'),
+      paraBrasilia('contas', 'ultima_cobranca'),
+      paraBrasilia('membros', 'data_entrada'),
+      paraBrasilia('itens_conhecidos', 'data_criacao'),
+      paraBrasilia('cartoes', 'data_criacao'),
+      paraBrasilia('lancamentos', 'data_lancamento'),
+      paraBrasilia('lancamentos', 'fatura_paga_em'),
+      paraBrasilia('contas_pendentes', 'data_resolucao'),
+      paraBrasilia('contas_pendentes', 'data_criacao'),
+      paraBrasilia('cobrancas', 'data_criacao'),
+      paraBrasilia('cobrancas', 'data_pagamento')
+    ]);
+
+    // Teste gratis passou de 4 pra 30 dias: quem ainda nao pagou nenhuma vez
+    // e se cadastrou ha menos de 30 dias ganha o restante do prazo novo.
+    await migrarUmaVez('2026-11-teste-30-dias', [
+      `UPDATE contas
+       SET status_assinatura = 'teste',
+           data_vencimento = data_cadastro + INTERVAL '30 days'
+       WHERE status_assinatura IN ('teste', 'vencido')
+         AND ultima_cobranca IS NULL
+         AND data_cadastro + INTERVAL '30 days' > NOW()`
+    ]);
+
     await client.query('COMMIT');
     console.log('initDb: tabelas verificadas/criadas com sucesso.');
   } catch (err) {

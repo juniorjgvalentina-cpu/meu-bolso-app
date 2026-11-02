@@ -1,10 +1,12 @@
+// Horario de Brasilia em todo o sistema (o Railway roda em UTC).
+process.env.TZ = 'America/Sao_Paulo';
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const cron = require('node-cron');
 const initDb = require('./initDb');
 const pool = require('./db');
-const { proximoCicloFatura, dataFechamentoDoCiclo } = require('./utils/faturaCartao');
+const { sincronizarFaturasDeCartao } = require('./utils/sincronizarFaturas');
 
 const cadastroRoutes = require('./routes/cadastro');
 const loginRoutes = require('./routes/login');
@@ -110,50 +112,12 @@ async function gerarProximasPendenciasComuns() {
   return geradas;
 }
 
-// Faturas de cartao: disparam quando a fatura FECHA (nao quando vence).
-// Isso abre a proxima fatura, ja pronta pra receber lancamentos novos,
-// enquanto a fatura anterior (ja fechada) continua separada esperando
-// pagamento - as duas ficam visiveis ao mesmo tempo em A Pagar.
-async function gerarProximasFaturasDeCartao() {
-  let geradas = 0;
-  const pendentes = await pool.query(`
-    SELECT p.*, c.dia_fechamento, c.dia_vencimento
-    FROM contas_pendentes p
-    JOIN cartoes c ON c.id = p.cartao_id
-    WHERE p.recorrente = TRUE AND p.resolvido = FALSE AND p.cartao_id IS NOT NULL
-      AND p.fatura_referencia IS NOT NULL
-      AND NOT EXISTS (
-        SELECT 1 FROM contas_pendentes p2
-        WHERE p2.cartao_id = p.cartao_id AND p2.recorrente = TRUE
-          AND p2.fatura_referencia > p.fatura_referencia
-      )
-  `);
-
-  for (const p of pendentes.rows) {
-    const fechamentoCiclo = dataFechamentoDoCiclo(p.fatura_referencia, p.dia_fechamento, p.dia_vencimento);
-    const abreEm = new Date(`${fechamentoCiclo}T00:00:00`);
-    abreEm.setDate(abreEm.getDate() + 1);
-
-    if (abreEm <= new Date()) {
-      const proximo = proximoCicloFatura(p.fatura_referencia, p.dia_vencimento);
-      await pool.query(
-        `INSERT INTO contas_pendentes (conta_id, membro_id, tipo, nome, data_vencimento, recorrente, cartao_id, fatura_referencia)
-         VALUES ($1, $2, $3, $4, $5, TRUE, $6, $7)`,
-        [p.conta_id, p.membro_id, p.tipo, p.nome, proximo.dataVencimento, p.cartao_id, proximo.referencia]
-      );
-      geradas++;
-    }
-  }
-  return geradas;
-}
-
 async function gerarProximasPendenciasRecorrentes() {
   try {
     const geradasComuns = await gerarProximasPendenciasComuns();
-    const geradasCartao = await gerarProximasFaturasDeCartao();
-    const total = geradasComuns + geradasCartao;
-    if (total > 0) {
-      console.log(`Job de recorrencia: ${total} pendencia(s) gerada(s) (${geradasComuns} comuns, ${geradasCartao} de cartao).`);
+    const cartao = await sincronizarFaturasDeCartao();
+    if (geradasComuns + cartao.geradas + cartao.removidas > 0) {
+      console.log(`Job de recorrencia: ${geradasComuns} comum(ns) gerada(s), ${cartao.geradas} fatura(s) aberta(s), ${cartao.removidas} fatura(s) adiantada(s)/duplicada(s) removida(s).`);
     }
   } catch (err) {
     console.error('Erro no job de gerar recorrentes:', err);
